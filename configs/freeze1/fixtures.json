@@ -1,0 +1,40 @@
+{
+  "schema": "wda/freeze1/fixtures/1",
+  "frozen_at": "Freeze-1",
+  "protocol_section": "§10 Phase 0",
+  "exit_rule": "All five must pass before Phase A. Before the freeze, a failure may be repaired and the fixtures re-run. After Freeze-2, ANY fixture failure means the assay is void and stops (SC4).",
+  "fixtures": {
+    "noop_returns_zero": {
+      "assertion": "with k = 0 or strength 0, the logits are BIT-EXACT against the clean pass in fp32",
+      "tolerance": 0,
+      "tolerance_note": "bit-exact means byte equality, not allclose. Fact F7: the bf16 reduction-order offset of 0.11-0.48 logits is the same order as the effects under measurement, so any result without a demonstrated bit-exact no-op is uninterpretable.",
+      "module": "wda.intervene.precision.check_noop"
+    },
+    "projection_removed": {
+      "assertion": "after ablation, the residual stream's projection onto every ablated direction is zero",
+      "tolerance": 1e-6,
+      "module": "wda.intervene.ablate.project_out"
+    },
+    "random_control_norm_matched": {
+      "assertion": "the random-direction control removes the same vector norm as the J-space ablation",
+      "tolerance": 1e-6,
+      "module": "wda.intervene.controls.assert_norm_matched"
+    },
+    "lens_readout_matches_reference": {
+      "assertion": "on the calibration model, the locally fitted lens's top-k readout agrees with the public community lens on the same prompt",
+      "metric": "Jaccard over top-25 tokens",
+      "threshold": 0.30,
+      "threshold_note": "Registered in advance. A low but non-zero bar: the community lens is itself a third-party artifact and exact agreement is not expected. Failing it means the local fit is not reproducing a known-good lens at all.",
+      "reference_lens": "HF Kameshr/jspace-lens-Qwen7B",
+      "module": "wda.lens.fit"
+    },
+    "known_intermediate_positive": {
+      "assertion": "on the calibration model, an intermediate swap from upstream probe-swap.json raises the target-answer logit while a matched-norm random perturbation does not",
+      "min_items": 20,
+      "min_margin": 0.0,
+      "source": "third_party/jacobian-lens/<pinned>/data/experiments/probe-swap.json",
+      "module": "wda.intervene.patch.SwapOutcome.positive_control_holds",
+      "note": "Fact F8: the predecessor project NEVER obtained a passing positive control on the J-lens line, which is why its negative results were strong about its own execution and weak about the method. This fixture exists so that failure mode is detected before any scientific run."
+    }
+  }
+}

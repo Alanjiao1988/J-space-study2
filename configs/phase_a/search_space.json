@@ -1,0 +1,41 @@
+{
+  "schema": "wda/phase_a/search_space/1",
+  "protocol_section": "§10 Phase A",
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "model_role": "calibration",
+  "evidential_weight": 0,
+  "blinding": {
+    "enforced_by": "wda.governance.blind.phase_a_blinding",
+    "withheld_roles": ["treatment", "comparator"],
+    "forbidden": [
+      "loading any subject checkpoint",
+      "computing or inspecting any D",
+      "computing or inspecting any G"
+    ],
+    "permitted_selection_surfaces": [
+      "structural_statistics",
+      "causal_positive_control",
+      "general_damage_check",
+      "parseability",
+      "paired_variance"
+    ]
+  },
+  "search_space": {
+    "n_prompts": [200, 400, 800, 1000],
+    "skip_first": [16, 24, 32],
+    "n_probes": [128, 256, 512],
+    "k": [4, 8, 10, 16],
+    "strength": ["light", "medium", "heavy"]
+  },
+  "calibration_targets": [
+    "fit scale (n_prompts, skip_first, n_probes)",
+    "band, as emitted by the automatic rule",
+    "k",
+    "strength tier",
+    "the paired covariance used for the delta variance and the power calculation",
+    "measured parseability per condition",
+    "C_direct compliance rate"
+  ],
+  "outputs": "a parameter table written into configs/freeze2/",
+  "note": "Phase A carries zero evidential weight. Its only job is to fix parameters using structure, the positive control, and the general-damage check - never using an effect size."
+}

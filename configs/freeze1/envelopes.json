@@ -1,0 +1,42 @@
+{
+  "schema": "wda/freeze1/envelopes/1",
+  "frozen_at": "Freeze-1",
+  "protocol_section": "§5, §15.2",
+  "chat_template": "native",
+  "answer_cue": "Final answer:",
+  "L_p": 3,
+  "L_p_note": "Number of trailing prompt positions in window W. Verified against each subject's real tokenizer by wda.conditions.envelopes.assert_cue_length BEFORE the first model call. Fact F3 is the precedent: the predecessor discovered only at execution time that its registered surfaces tokenised to two tokens, which made its rule unimplementable as written.",
+  "max_new_tokens": 8,
+  "window_rule": "last_L_p_prompt_plus_generated",
+  "window_parity": "C_direct and C_frozen share L_p and max_new_tokens, so both receive exactly the same number of ablation exposures. Enforced by assert_window_parity.",
+  "conditions": {
+    "C_direct": {
+      "system": "Answer with the final integer only.",
+      "rationale_source": null,
+      "prefill": null,
+      "tier": "primary"
+    },
+    "C_frozen": {
+      "system": "Answer with the final integer only.",
+      "rationale_source": "generator",
+      "prefill": null,
+      "tier": "primary",
+      "note": "The rationale is pre-frozen and generator-supplied. It is never produced by the model under test."
+    },
+    "C_gen": {
+      "system": "Reason step by step, then give the final integer.",
+      "rationale_source": null,
+      "prefill": null,
+      "max_new_tokens": 512,
+      "tier": "secondary",
+      "note": "Ablates all generated positions, aligned with the paper's GSM8K setup. Its exposure count differs from the primary pair by design, which is exactly why G_gen is not the endpoint."
+    },
+    "C_direct_prefill": {
+      "system": "Answer with the final integer only.",
+      "rationale_source": null,
+      "prefill": "<think>\n\n</think>",
+      "tier": "exploratory",
+      "note": "Compliance probe for fact F4. Never enters the primary."
+    }
+  }
+}

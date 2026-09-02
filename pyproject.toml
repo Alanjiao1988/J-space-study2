@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wda"
+version = "1.1.0"
+description = "Fixed-Checkpoint Workspace-Dependence Audit — J-space ablation x response-format interaction"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+# Model-facing extras. Not required to run the stats / governance / item test suites.
+models = [
+    "torch>=2.1",
+    "transformers>=4.44",
+]
+dev = [
+    "pytest>=7.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["wda*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "needs_torch: test requires torch",
+    "needs_model: test downloads or loads a model checkpoint (never run before Freeze-1)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

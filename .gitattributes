@@ -1,0 +1,32 @@
+# Line endings are load-bearing in this repository.
+#
+# FREEZE-1.json / FREEZE-2.json hash the *bytes* of the working tree (wda.governance.seal).
+# If git rewrote LF to CRLF on checkout, a fresh clone would fail seal verification on a
+# different platform and every run would be refused. The predecessor project hit exactly
+# this and had to ship a `restore_eol.py` in its closure directory; this file prevents it.
+#
+# Everything sealed is therefore pinned to LF on every platform.
+
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.jsonl text eol=lf
+*.txt   text eol=lf
+*.cfg   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+Makefile text eol=lf
+
+# Never touched by git's text filters.
+*.safetensors binary
+*.bin         binary
+*.pt          binary
+*.npy         binary
+*.npz         binary
+
+# The upstream clone is vendored unmodified and is not tracked; if it is ever committed,
+# it must not be filtered either.
+third_party/** -text

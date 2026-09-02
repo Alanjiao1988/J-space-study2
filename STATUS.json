@@ -1,0 +1,56 @@
+{
+  "schema": "wda/status/1",
+  "project": "Fixed-Checkpoint Workspace-Dependence Audit",
+  "protocol": "PROTOCOL_v1.1.md",
+  "state": "FREEZE_1_CANDIDATE_SCAFFOLD_COMPLETE_NO_EXECUTION",
+  "updated_at": "2026-09-02",
+
+  "execution": {
+    "subject_model_calls": 0,
+    "calibration_model_calls": 0,
+    "checkpoints_downloaded": 0,
+    "lenses_fitted": 0,
+    "gpu_hours": 0,
+    "cloud_resources_created": 0,
+    "cloud_provider": null,
+    "note": "Nothing has been executed. No model has been loaded, no checkpoint downloaded, no cloud resource created. The repository contains design, implementation and tests only."
+  },
+
+  "phases": {
+    "freeze1": "candidate - sealed as FREEZE-1.json; awaiting operator sign-off on delta and the F6-prime errata",
+    "phase0": "not started",
+    "phaseA": "not started",
+    "phaseB": "not started",
+    "freeze2": "not reached",
+    "phaseC": "not started",
+    "phaseD": "not started"
+  },
+
+  "gates_outstanding": [
+    "Operator signs off delta = 0.10 (section 9.1).",
+    "Operator accepts or amends the F6-prime and F13 errata in references/predecessor_facts.md (pre-freeze correction is permitted; post-freeze it becomes an SC5 matter).",
+    "Subject and calibration revisions resolved and locked via `python -m wda.models.registry lock` (section 8.1).",
+    "Upstream pinned commit vendored via tools/vendor_upstream.py (read-only, untracked).",
+    "L_p re-verified against each subject's real tokenizer by assert_cue_length before the first model call (fact F3).",
+    "Phase-0 fixtures 4 and 5 run in their model-facing form (currently skipped, marked needs_model)."
+  ],
+
+  "seal": {
+    "freeze1": "FREEZE-1.json present; verify with `python -m wda.governance.seal verify --stage freeze1`",
+    "freeze2": "not written; produced after Phase B, before Phase C"
+  },
+
+  "stopping_conditions_triggered": [],
+
+  "claim_state": {
+    "established": "nothing",
+    "note": "No measurement has been made. Any statement about J-space, about either checkpoint, or about distillation would be unsupported (sections 4 and 13)."
+  },
+
+  "predecessor": {
+    "repository": "https://github.com/Alanjiao1988/J-space-observation",
+    "head": "d87c1b9e4e9dca062cebad7b6eee981d9dba8c25",
+    "status": "DISCONTINUED - RESEARCH QUESTION UNANSWERED",
+    "inherited": "facts F1-F13 as design constraints only; no conclusion about J-space was inherited because none was established"
+  }
+}

@@ -1,0 +1,276 @@
+{
+  "schema": "wda/seal/1",
+  "stage": "freeze1",
+  "protocol": "PROTOCOL_v1.1.md",
+  "file_count": 53,
+  "root_sha256": "b8418439afa577323d4df18fb7fe1b9b869f24a70f866a7275be988f7302331d",
+  "files": [
+    {
+      "path": "PROTOCOL_v1.1.md",
+      "sha256": "5e71784adf599e726ac81a3c1558609dd259e13cf5dfe5bbb6e3899b05743b2a",
+      "size": 28336
+    },
+    {
+      "path": "configs/freeze1/band_rule.json",
+      "sha256": "eb1009124b9366b025c6473994a6aeeedf94bc71211499a58cc27975630b8aef",
+      "size": 1766
+    },
+    {
+      "path": "configs/freeze1/decision.json",
+      "sha256": "659e162ee1a40e1ae865cf1fc3ab15088e06c02e7e70a312611d68debefd00b2",
+      "size": 1629
+    },
+    {
+      "path": "configs/freeze1/envelopes.json",
+      "sha256": "b71ea9d47d30f3876f085e308d9b508bb50754749925a8d3e99e4ac13c99b915",
+      "size": 1911
+    },
+    {
+      "path": "configs/freeze1/fixtures.json",
+      "sha256": "ed989c493e930df0b7381ad456145133b3aa40ea2baed6192e7c439e8354d89e",
+      "size": 2561
+    },
+    {
+      "path": "configs/freeze1/instrument.json",
+      "sha256": "f099ac2d3dc17703d9ced02847e4f0aaeb22079748d3c4a2cff1db7c9db3f360",
+      "size": 3468
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "98315b34daf736e6ebfe5491940267779b14bbf2509d1910b9c7c697a0f2a9dc",
+      "size": 858
+    },
+    {
+      "path": "src/wda/__init__.py",
+      "sha256": "cf9ec06f2547741d9b464fd7ffd92a5a92ceb7513c87e0be876764a2276116c8",
+      "size": 1024
+    },
+    {
+      "path": "src/wda/assays/__init__.py",
+      "sha256": "130b055615033f056cd9ed3386ecca4ef3c8da76452081ed4746f3625f73ab7d",
+      "size": 418
+    },
+    {
+      "path": "src/wda/assays/flexible_generalization.md",
+      "sha256": "06362b7d1090466d12fa5d25549179d5d23199de0f937e9cd50baf005e02a2a1",
+      "size": 1667
+    },
+    {
+      "path": "src/wda/assays/flexible_generalization.py",
+      "sha256": "c4cf224108a3b979347fb73478de35f21a8fc02ece90c111ff3b235de3e431c3",
+      "size": 3818
+    },
+    {
+      "path": "src/wda/assays/primary_interaction.md",
+      "sha256": "04bcc920b126770f68131691ffecfffb545168674eaba8ac837893b1607cb0c3",
+      "size": 2762
+    },
+    {
+      "path": "src/wda/assays/primary_interaction.py",
+      "sha256": "f95ae8f517efe45dfc53ad97caa1a3a48ee6e265f4046f8f9242953948c6e4a7",
+      "size": 5908
+    },
+    {
+      "path": "src/wda/assays/probe_swap.md",
+      "sha256": "6bec263fb1d8ed5c8be00ea100381f9156951fb3cc2ea64955b6f3d4316c379b",
+      "size": 2108
+    },
+    {
+      "path": "src/wda/assays/probe_swap.py",
+      "sha256": "99972fa24c5277e0099fcbe43249bc26483c8a40a246af29d244d7339eebc177",
+      "size": 3945
+    },
+    {
+      "path": "src/wda/assays/registry.py",
+      "sha256": "5ca523831c40d85842a1e9340a57133a6104f07ac8b7a80ae638bb011b68e832",
+      "size": 7749
+    },
+    {
+      "path": "src/wda/conditions/__init__.py",
+      "sha256": "55a61fa902286934ef845ce633a35b86af1055f32e53600b01d1247ac5544bfa",
+      "size": 517
+    },
+    {
+      "path": "src/wda/conditions/envelopes.py",
+      "sha256": "f91c92b1fb201d8e7e479f0c424b53ed863e8e217115818822006fb612668763",
+      "size": 13427
+    },
+    {
+      "path": "src/wda/errors.py",
+      "sha256": "18ef83aee32db3b30dcd197b3b9d950ee0346a2c5a5fb7e378bc9797ffca37a2",
+      "size": 2129
+    },
+    {
+      "path": "src/wda/governance/__init__.py",
+      "sha256": "a76d47d2c6fb80f07a5db21dad0616922ed2c9e35c4d975c5d52803ddfff00ec",
+      "size": 582
+    },
+    {
+      "path": "src/wda/governance/blind.py",
+      "sha256": "168f458616debea02a01c7770cfdd43865d8361b4f86a77c753eb77a8c1d8c9e",
+      "size": 6307
+    },
+    {
+      "path": "src/wda/governance/rerun_policy.py",
+      "sha256": "e1722e97fc692108f6ff00b4afd613805da12b2fbc399c8231ab367da7f70a02",
+      "size": 6702
+    },
+    {
+      "path": "src/wda/governance/seal.py",
+      "sha256": "7f21a6aa1328ff108039b8f19eb33b138db6bcc9d4dbc57dc8454177597ee04f",
+      "size": 9009
+    },
+    {
+      "path": "src/wda/intervene/__init__.py",
+      "sha256": "c38890e8be33e87ea14aafed4d1fa29de2c082b8572470ac16b0bdbb96f07f38",
+      "size": 202
+    },
+    {
+      "path": "src/wda/intervene/ablate.py",
+      "sha256": "254f502b15c4c2ae476bd742f5a885719fbca7421d0b7543b3ac4c45c3aae8b6",
+      "size": 10118
+    },
+    {
+      "path": "src/wda/intervene/controls.py",
+      "sha256": "fb6ed9203b6b64882792ce3beec5cf22e0d143ebedf29a672b1cbca3183aa631",
+      "size": 10334
+    },
+    {
+      "path": "src/wda/intervene/patch.py",
+      "sha256": "ef3dbd90e9969db38546b31a7a275f2a487902f95dc28891382e9fc3ebe3d80e",
+      "size": 7536
+    },
+    {
+      "path": "src/wda/intervene/precision.py",
+      "sha256": "e4aeda3befefcefb6bfc71940cbce6199b95b623b3720d7f57ce990e9a800c61",
+      "size": 5454
+    },
+    {
+      "path": "src/wda/items/__init__.py",
+      "sha256": "5bef5659f35e5c6535d1da1316fffc527192bc6ae588ac48f532236342bff365",
+      "size": 582
+    },
+    {
+      "path": "src/wda/items/generator.py",
+      "sha256": "ea28b96c5280e3133fa8b83d62c9063886f813cf840537c7abd9a5670bbb8abc",
+      "size": 16756
+    },
+    {
+      "path": "src/wda/items/gsm8k_split.py",
+      "sha256": "7b6f761a700faa76f0d21d10c1b281a24560662ce16b153ea6117176707aa41c",
+      "size": 5411
+    },
+    {
+      "path": "src/wda/lens/__init__.py",
+      "sha256": "55103a7581f4182e9cad042a650cb9ab48b41e9263652a259f716cc95ef7d7e8",
+      "size": 179
+    },
+    {
+      "path": "src/wda/lens/aggregate.py",
+      "sha256": "49fd7953ff2a1a92903ce829af8ca03d427718238b92f88548a4f053fb19c815",
+      "size": 4287
+    },
+    {
+      "path": "src/wda/lens/band.py",
+      "sha256": "d1dbe3bb500145b33ef910f148f6c8a49b0f7b3e8873bd8e023c5d8b55bc85da",
+      "size": 14893
+    },
+    {
+      "path": "src/wda/lens/fit.py",
+      "sha256": "ac6ad0c9233b99d1e4fac01e5a317127e8c5d2ef13b9a2811dc82ee5a6ba9cde",
+      "size": 11712
+    },
+    {
+      "path": "src/wda/models/__init__.py",
+      "sha256": "0a909560a19f2d10bffb7958acf9c363f37becf4be3996e026829e6131bc9db3",
+      "size": 524
+    },
+    {
+      "path": "src/wda/models/registry.py",
+      "sha256": "72db8b1cc580849f7ba0b7d77bac40caa11609e4a0b9b235a8a612d1f9174bef",
+      "size": 12767
+    },
+    {
+      "path": "src/wda/paths.py",
+      "sha256": "dde2e88ef5a61d07254bfb5f4ef47354bba615aea5269388772a90bb7742566d",
+      "size": 2617
+    },
+    {
+      "path": "src/wda/phases.py",
+      "sha256": "ee7693e6cf2f0a1b10e356dd2f43a687b7a94c2129a1ef98e5ee27eafc66da5f",
+      "size": 1985
+    },
+    {
+      "path": "src/wda/runtime/__init__.py",
+      "sha256": "7aab065a2032d19752e774d7ad533a15125976f34455b6ce6fc76ff176ddbbc9",
+      "size": 178
+    },
+    {
+      "path": "src/wda/runtime/run.py",
+      "sha256": "0a48c4fb53e5f8d5e137adfe205b1a0a9672fc78dd00e479f327fbdd9865dd10",
+      "size": 8141
+    },
+    {
+      "path": "src/wda/scoring/__init__.py",
+      "sha256": "0894b8f7f07a632debe17cd3104b30462caefb2b18f8f25c8809bf86bbb58e6f",
+      "size": 503
+    },
+    {
+      "path": "src/wda/scoring/parse.py",
+      "sha256": "8af348950fcea3bdfa330369c269108913bd29ac6196c6fdf2ec45d32549fda4",
+      "size": 10202
+    },
+    {
+      "path": "src/wda/stats/__init__.py",
+      "sha256": "fda2be819be8998521fa07856fcd5e88dbd218c49a3472e95f9c659e0719dd36",
+      "size": 171
+    },
+    {
+      "path": "src/wda/stats/bootstrap.py",
+      "sha256": "d4d1c96678f7cd1fec0d313e129031ab260b501e89e4a1784c4e3bd8c3bab767",
+      "size": 12857
+    },
+    {
+      "path": "src/wda/stats/decision.py",
+      "sha256": "6831f602d3fc4e8fef2ef4e8fc8af84b2d9efcd12b5ee97ada3b3e43d261e9c7",
+      "size": 9706
+    },
+    {
+      "path": "src/wda/stats/power.py",
+      "sha256": "e5f3204682666cd41ee82c0bdd6a9f9e84946c53e29a4847ac0fb7fef2fa0108",
+      "size": 13952
+    },
+    {
+      "path": "tests/conformance/test_fixtures.py",
+      "sha256": "7d8ad25301e33439358a00746905b067bdc6091a0a2a3a4efa5940948fa14e88",
+      "size": 12127
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "df6549aa42b40c69b7442c943f56d21ecf26186e1325a78196903f693bfcdbce",
+      "size": 3396
+    },
+    {
+      "path": "tests/design/test_design.py",
+      "sha256": "0f801eb2e80860752aa19c2f4102b6ac27623c90fb44564260162a3aa6b3112e",
+      "size": 22193
+    },
+    {
+      "path": "tests/governance/test_governance.py",
+      "sha256": "8a25b76ed9756132dc274759c65960282b91ab7b35a1b290db8973ffcde8209f",
+      "size": 12846
+    },
+    {
+      "path": "tests/governance/test_run.py",
+      "sha256": "25147cd7c6c02d9cb546e11f776c6dff1f2af4a4fe4d243fd40cce689d28a1d1",
+      "size": 6561
+    },
+    {
+      "path": "tests/stats/test_stats.py",
+      "sha256": "01d672a5d8b09ce84636d2dd89e115076f03a3870fc3df96f2ab01b15c39cc39",
+      "size": 11050
+    }
+  ],
+  "sealed_at": "2026-09-02T05:13:41+00:00",
+  "note": "Seal for freeze1; written before the first model call (F13)."
+}

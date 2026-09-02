@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# Vendored upstream source is fetched by tools/vendor_upstream.py and pinned by
+# third_party/jacobian-lens/PINNED_COMMIT.txt. Only the pin + policy are tracked.
+third_party/jacobian-lens/*/
+!third_party/jacobian-lens/.gitkeep
+
+# Model weights / caches are never committed.
+*.safetensors
+*.bin
+*.pt
+hf_cache/
+
+# Fitted lenses are large; only their hashes enter FREEZE-2.json.
+artifacts/lenses/
+
+# Run outputs are committed deliberately, per run, by the operator. Scratch is not.
+runs/**/scratch/

@@ -1,0 +1,28 @@
+{
+  "schema": "wda/freeze1/band_rule/1",
+  "frozen_at": "Freeze-1",
+  "protocol_section": "§6.3",
+  "statistics": {
+    "a_top_k_hit_rate": "J-lens top-k readout contains the model's own top-1 token",
+    "b_excess_kurtosis": "excess kurtosis of the readout distribution",
+    "c_top1_autocorrelation": "top-1 token agreement across adjacent positions, against a position-shuffled null",
+    "d_effective_dimension": "participation ratio of the Jacobian spectrum"
+  },
+  "rule": "band = [onset of the kurtosis rise, onset of the sharp rise in next-token accuracy), intersected with the floors below, taking the longest surviving contiguous run",
+  "absolute_floor": 0.05,
+  "relative_floor": 0.50,
+  "min_length": 4,
+  "null_margin": 0.02,
+  "autocorrelation_margin": 0.05,
+  "kurtosis_onset_quantile": 0.60,
+  "accuracy_rise_min_jump": 0.05,
+  "reject_right_censored": true,
+  "repairs_to_the_predecessor_rule": [
+    "1. absolute_floor - the predecessor rule ('the longest run at or above half the maximum') was scale-free by construction and had no absolute floor.",
+    "2. min_length - the predecessor rule had no minimum length and emitted a band of length 1 after condition (ii) was applied.",
+    "3. null_margin - every band layer must beat the matched-norm random-lens null. Adding this null is what actually lifted the predecessor's HB-002 blocker.",
+    "4. reject_right_censored - a band whose upper edge is the final layer is right-censored by the end of the network and is refused rather than reported."
+  ],
+  "human_intervention": "none; the rule is automatic and its output is recorded whether or not a band is found",
+  "no_band_is_a_result": "If no admissible band exists, that is reported. The rule may not be relaxed to produce one (§11)."
+}

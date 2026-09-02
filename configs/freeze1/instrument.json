@@ -1,0 +1,63 @@
+{
+  "schema": "wda/freeze1/instrument/1",
+  "frozen_at": "Freeze-1",
+  "protocol_section": "§6.1, §6.2, §7, §10 Phase B, §11",
+  "lens_fit": {
+    "readout": "softmax(W_U . norm(J_l h_l))",
+    "jacobian": "J_l = E_{t, t'>=t, prompt}[ d h_final,t' / d h_l,t ]",
+    "estimator": "unbiased rank-m stochastic estimate from m Jacobian-vector products; m is recorded per fit and a rank-m estimate is never described as the exact Jacobian",
+    "min_prompts": 200,
+    "min_skip_first": 16,
+    "floor_rationale": "The amaljithkuttamath replication fitted at n=25 with skip_first=4 and its shuffled-corpus lens scored >= the real lens on all six evaluations (typo MRR 0.806 vs 0.318). These floors keep this project out of that regime. The exact scale above the floor is a Phase-A calibration object.",
+    "lenses_per_subject": {
+      "real": 2,
+      "shuffled": 1,
+      "logit": 1,
+      "tuned": "optional"
+    },
+    "real_lens_corpora": "disjoint samples, different seeds",
+    "aggregation": "paired mean of both real lenses; the lens fit is the outermost bootstrap level",
+    "post_hoc_lens_selection": "forbidden (§6.2)"
+  },
+  "phase_b_qualification": {
+    "readout_reliability": {
+      "criterion": "both real lenses reach top-25 recall >= threshold on held-out corpus",
+      "threshold": 0.40
+    },
+    "corpus_necessity": {
+      "criterion": "the real-corpus lens beats the shuffled-corpus lens on the held-out readout criterion",
+      "margin": 0.05,
+      "note": "Failing this reproduces amaljithkuttamath's finding and the subject is out."
+    },
+    "vs_logit_lens": {
+      "criterion": "on the FIRST HALF of the band the real lens is no worse than the logit lens",
+      "margin": 0.0,
+      "note": "Superiority across all layers is NOT required. The paper states the logit lens captures much of the workspace-like structure, with lower reliability particularly in earlier layers, so the first half of the band is where the two are claimed to diverge."
+    },
+    "causal_positive_control": {
+      "criterion": "a known intermediate swap moves the target in the registered direction, and a matched-norm random perturbation does not",
+      "min_items": 20
+    },
+    "general_damage": {
+      "criterion": "the output-KL distributions of the J-space ablation and the layer-matched random ablation are separable",
+      "separability_threshold": 0.80,
+      "note": "If they are not separable at a given strength tier, that tier is void."
+    },
+    "on_failure": "Any FAIL removes that subject; no patching, no re-run. If either subject fails, SC1 applies and RQ1 closes permanently for the failing side."
+  },
+  "ablation": {
+    "k": null,
+    "k_note": "Fixed at Freeze-2 from Phase A. The paper's reference value is k = 10.",
+    "band": null,
+    "band_note": "Fixed at Freeze-2 from the automatic rule in configs/freeze1/band_rule.json.",
+    "strength_tiers": ["light", "medium", "heavy"],
+    "strength_definition": "by layer band: light = first third of the band, medium = first two thirds, heavy = the whole band",
+    "skip_clean_top": 10,
+    "precision": "fp32",
+    "control": "layer_matched_random"
+  },
+  "rerun_policy": {
+    "infrastructure_reruns": "permitted, pre-registered; codes and budgets are frozen in wda.governance.rerun_policy",
+    "scientific_reruns": "forbidden: no re-run for an unwelcome result, no seed change, no band change, no k change, no delta change, no added samples, no endpoint change"
+  }
+}
