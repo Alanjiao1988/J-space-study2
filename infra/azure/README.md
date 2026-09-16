@@ -11,6 +11,12 @@ shutdown schedule. These associated resources are not free merely because
 the VM is deallocated. No resource-group creation or deployment has been
 submitted by preparing these files.
 
+The template uses `auditVmSku` and `guestPublicKey` rather than the portal's
+automatically recognized `vmSize`/`sshPublicKey` form fields. This keeps the
+explicit SKU whitelist and supplied public key instead of invoking the
+unresponsive size picker or proposing a new persisted Azure SSH-key resource.
+The ARM hardware profile and public-key properties are unchanged.
+
 ## Mandatory preflight
 
 - The operator prefers Azure CLI. `python tools/ce3_preflight.py` prints

@@ -76,5 +76,6 @@ def test_template_has_one_vm_and_no_inbound_allow_rule():
     assert len([r for r in value["resources"] if r["type"] == "Microsoft.Compute/virtualMachines"]) == 1
     nsg = next(r for r in value["resources"] if r["type"] == "Microsoft.Network/networkSecurityGroups")
     assert all(rule["properties"]["access"] == "Deny" for rule in nsg["properties"]["securityRules"])
-    for key in ("sshPublicKey", "shutdownTimeUtc", "imageVersion"):
+    assert value["parameters"]["auditVmSku"]["allowedValues"] == ["Standard_NC96ads_A100_v4"]
+    for key in ("guestPublicKey", "shutdownTimeUtc", "imageVersion"):
         assert "defaultValue" not in value["parameters"][key]

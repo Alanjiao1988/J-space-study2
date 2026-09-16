@@ -20,7 +20,7 @@
       "minLength": 1,
       "maxLength": 50
     },
-    "vmSize": {
+    "auditVmSku": {
       "type": "string",
       "defaultValue": "Standard_NC96ads_A100_v4",
       "allowedValues": ["Standard_NC96ads_A100_v4"]
@@ -29,7 +29,7 @@
       "type": "string",
       "defaultValue": "wdaadmin"
     },
-    "sshPublicKey": {
+    "guestPublicKey": {
       "type": "string",
       "minLength": 40,
       "metadata": {
@@ -165,7 +165,7 @@
         "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
       ],
       "properties": {
-        "hardwareProfile": {"vmSize": "[parameters('vmSize')]"},
+        "hardwareProfile": {"vmSize": "[parameters('auditVmSku')]"},
         "osProfile": {
           "computerName": "[parameters('vmName')]",
           "adminUsername": "[parameters('adminUsername')]",
@@ -176,7 +176,7 @@
               "publicKeys": [
                 {
                   "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-                  "keyData": "[parameters('sshPublicKey')]"
+                  "keyData": "[parameters('guestPublicKey')]"
                 }
               ]
             }
@@ -241,7 +241,7 @@
       "value": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
     },
     "location": {"type": "string", "value": "[parameters('location')]"},
-    "vmSize": {"type": "string", "value": "[parameters('vmSize')]"},
+    "vmSize": {"type": "string", "value": "[parameters('auditVmSku')]"},
     "shutdownTimeUtc": {"type": "string", "value": "[parameters('shutdownTimeUtc')]"}
   }
 }
