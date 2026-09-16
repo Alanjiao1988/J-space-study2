@@ -1,6 +1,9 @@
 # CE3 four-A100 host
 
-**Prepared, not deployed.** Only subscription
+**The parameterized template is a reusable preparation artifact. The dated
+resolved template was submitted once and partially succeeded: the requested
+VM was created, its four A100 GPUs/driver verified, and it was then manually
+stopped/deallocated.** Only subscription
 `d124de35-7837-4ffe-ba2b-2ec1d31477d0` is authorized. The resource-group-scoped
 template cannot itself select the subscription; the deployment caller must
 verify the subscription before submitting it.
@@ -65,8 +68,9 @@ four running hours for this VM; it must not be represented as a confirmed
 budget without the operator's agreement.
 
 The data disk detaches rather than being deleted with the VM, preserving
-experiment evidence. It continues to incur storage charges. Resource cleanup
-and retention must be explicitly recorded.
+experiment evidence. It continues to incur storage charges. Resource cleanup and retention must be explicitly recorded. Current observed
+state is in `STATUS.json` and the restart operations report, not inferred from
+this template.
 
 ## Experiment startup
 

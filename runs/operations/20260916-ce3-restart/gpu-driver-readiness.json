@@ -1,0 +1,9 @@
+{
+  "at": "2026-09-16T04:24:27.765336+00:00",
+  "four_a100_80gb_driver_check_passed": true,
+  "returncode": 0,
+  "schema": "wda/gpu-driver-readiness/1",
+  "scope": "hardware/driver verification only; no scientific qualification or model execution",
+  "stderr": "",
+  "stdout": "0, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04\n1, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04\n2, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04\n3, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04\n"
+}

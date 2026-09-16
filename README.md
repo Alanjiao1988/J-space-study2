@@ -8,13 +8,18 @@
 > Protocol of record: [`PROTOCOL_v1.1.md`](PROTOCOL_v1.1.md) — **read-only after Freeze-1.**
 > Predecessor: [`J-space-observation`](https://github.com/Alanjiao1988/J-space-observation) @ `d87c1b9e4e9dca062cebad7b6eee981d9dba8c25` — `DISCONTINUED — RESEARCH QUESTION UNANSWERED`.
 
-> ### ⛔ Execution state: nothing has been run
+> ### Execution state: VM created; no scientific model trial
 >
-> **0 model calls · 0 checkpoints downloaded · 0 lenses fitted · 0 GPU-hours · 0 cloud resources.**
-> Resource creation is authorized in subscription
-> `d124de35-7837-4ffe-ba2b-2ec1d31477d0`, China East 3. **Azure CLI remains blocked by
-> the local sandbox; no deployment has been submitted.** Portal Owner access was
-> verified, but it does not repair the CLI's filesystem restriction.
+> **0 registered-model calls · 0 checkpoints downloaded · 0 lenses fitted.**
+> One `Standard_NC96ads_A100_v4` VM was created in subscription
+> `d124de35-7837-4ffe-ba2b-2ec1d31477d0`, China East 3, through a fixed-input
+> ARM template in the portal. **The VM was Running even though the overall
+> deployment failed.** Four A100 80GB devices and driver 580.178.04 were then
+> verified. The VM is now **Stopped (deallocated)**, verified at
+> `2026-09-16T04:32:32.890Z`, with disks/logs retained. The failed component,
+> automatic shutdown and prior charges are not fully reconciled; retained
+> disks and the static public IP remain chargeable.
+> Local Azure CLI remains sandbox-blocked.
 > See [`STATUS.json`](STATUS.json) and the
 > [restart operations report](reports/ce3_restart_20260916.md).
 >

@@ -1,0 +1,25 @@
+{
+  "schema": "wda/driver-install-observation/1",
+  "observation_date": "2026-09-16",
+  "vm": "wda-ce3-a100x4-0916",
+  "script": "scripts/02-install-gpu-driver.sh",
+  "script_sha256": "e8c292e0dc332e234449964c2fd561e3b359edea9f47c8342190f44a518f8373",
+  "azure_wrapper_message": "Enable succeeded",
+  "script_reported_exit_code": 22,
+  "package_requested": "nvidia-driver-550-server",
+  "package_version_reported": "550.163.01-0ubuntu0.22.04.2",
+  "transitional_dependency_packages_seen": [
+    "nvidia-driver-570-server 570.211.01-0ubuntu1.22.04.1",
+    "nvidia-driver-580-server 580.178.04-0ubuntu0.22.04.1"
+  ],
+  "nvidia_smi_stdout_rows": [
+    "0, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04",
+    "1, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04",
+    "2, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04",
+    "3, NVIDIA A100 80GB PCIe, 81920 MiB, 580.178.04"
+  ],
+  "script_final_marker": "DRIVER_PACKAGE_INSTALLED_BUT_GPU_NOT_READY: inspect module/reboot requirement",
+  "interpretation": "Packages installed and all four A100 80GB devices appeared in output, but the bounded first readiness command was nonzero and the script reported 22. The actual cause is not established. Do not report a passing driver check or silently retry installation. A separate non-mutating readiness query is recorded next.",
+  "model_calls": 0,
+  "scientific_qualification": "not_run"
+}

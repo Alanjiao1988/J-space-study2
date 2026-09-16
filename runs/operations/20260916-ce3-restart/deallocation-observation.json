@@ -1,0 +1,20 @@
+{
+  "schema": "wda/azure-deallocation-observation/1",
+  "observed_at": "2026-09-16T04:32:32.890Z",
+  "source": "Authenticated Azure China VM overview status field after explicit Stop/Deallocate",
+  "subscription_id": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
+  "resource_group": "rg-wda-ce3-20260916",
+  "vm_name": "wda-ce3-a100x4-0916",
+  "vm_resource_id": "/subscriptions/d124de35-7837-4ffe-ba2b-2ec1d31477d0/resourceGroups/rg-wda-ce3-20260916/providers/Microsoft.Compute/virtualMachines/wda-ce3-a100x4-0916",
+  "location": "chinaeast3",
+  "power_state_display": "已停止(已取消分配)",
+  "power_state_interpretation": "Stopped (deallocated)",
+  "deallocation_verified": true,
+  "vm_deleted": false,
+  "disks_deleted": false,
+  "network_resources_deleted": false,
+  "compute_allocation_charges_stopped": true,
+  "remaining_chargeable_resources": "Managed disks and retained static public IP; actual bill not yet reconciled",
+  "azure_automatic_shutdown_verified": false,
+  "scientific_model_calls": 0
+}

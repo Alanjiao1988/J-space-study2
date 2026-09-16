@@ -1,0 +1,24 @@
+{
+  "at": "2026-09-16T04:12:01.080369+00:00",
+  "gpu_driver": {"status": "nvidia-smi-not-installed"},
+  "hostname": "wda-ce3-a100x4-0916",
+  "image_reference": {
+    "id": "",
+    "offer": "0001-com-ubuntu-server-jammy",
+    "publisher": "Canonical",
+    "sku": "22_04-lts-gen2",
+    "version": "latest"
+  },
+  "kernel": "6.8.0-1064-azure",
+  "logical_cpus": 96,
+  "nvidia_pci_devices": [
+    {"class": "0x030200", "device": "0x20b5", "pci_address": "0001:00:00.0", "vendor": "0x10de"},
+    {"class": "0x030200", "device": "0x20b5", "pci_address": "0002:00:00.0", "vendor": "0x10de"},
+    {"class": "0x030200", "device": "0x20b5", "pci_address": "0003:00:00.0", "vendor": "0x10de"},
+    {"class": "0x030200", "device": "0x20b5", "pci_address": "0004:00:00.0", "vendor": "0x10de"}
+  ],
+  "python": "3.10.12",
+  "schema": "wda/remote-environment-inventory/1",
+  "scientific_qualification": "not_run",
+  "scope": "read-only environment inventory; no installation, model download or model execution"
+}

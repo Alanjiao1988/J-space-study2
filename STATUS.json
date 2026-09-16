@@ -2,7 +2,7 @@
   "schema": "wda/status/1",
   "project": "Fixed-Checkpoint Workspace-Dependence Audit",
   "protocol": "PROTOCOL_v1.1.md",
-  "state": "RESTART_AUTHORIZED_BLOCKED_CLI_SANDBOX_AND_QUALIFICATION",
+  "state": "VM_CREATED_GPU_DRIVER_VERIFIED_DEALLOCATED_SCIENCE_NOT_STARTED",
   "updated_at": "2026-09-16",
 
   "restart_request": {
@@ -13,17 +13,29 @@
     "requested_gpus_per_vm": 4,
     "requested_gpu_family": "NVIDIA A100",
     "subscription_id": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
-    "resource_group": null,
-    "vm_resource_id": null,
+    "resource_group": "rg-wda-ce3-20260916",
+    "vm_resource_id": "/subscriptions/d124de35-7837-4ffe-ba2b-2ec1d31477d0/resourceGroups/rg-wda-ce3-20260916/providers/Microsoft.Compute/virtualMachines/wda-ce3-a100x4-0916",
     "login_reported_by_operator": true,
     "login_verified_by_agent": true,
     "verified_portal_role": "Owner",
     "preferred_control_plane": "Azure CLI",
-    "blocker": "After renewed approval at 2026-09-16T10:53:09+08:00, native az cloud show still failed with PermissionError writing C:\\Users\\alanjiao\\.azure\\az.sess. In the authenticated portal, the requested CE3 NC96ads_A100_v4 row was present but could not be selected, including with Standard security and Ubuntu 22.04 Gen2; its price was unavailable. Live quota and capacity remain unknown. No deployment, quota-change request, token transfer or sandbox bypass was submitted.",
+    "blocker": "Requested VM and four A100 80GB devices are verified; driver 580.178.04 passed readiness with exit 0. The VM was manually stopped/deallocated and verified at 2026-09-16T04:32:32.890Z to avoid idle compute billing. The aggregate ARM failure component and automatic-shutdown resource remain unverified; local CLI remains sandbox blocked. Scientific direction/reference/positive-control qualification, a bounded model runner and the new seal are outstanding. No model has been loaded.",
     "portal_size_observation": "runs/operations/20260916-ce3-restart/portal-sku-observation.json",
     "authorization_record": "runs/operations/20260916-ce3-restart/authorization.json",
     "operations_log": "runs/operations/20260916-ce3-restart/log.jsonl",
-    "report": "reports/ce3_restart_20260916.md"
+    "report": "reports/ce3_restart_20260916.md",
+    "vm_observation": "runs/operations/20260916-ce3-restart/vm-observation.json",
+    "deployment_template_commit": "a78fd55c715bc4b355fb3ceb1d73f6eec4268357",
+    "deployment_submitted": true,
+    "vm_instances_confirmed_created": 1,
+    "shutdown_verified": false,
+    "gpu_driver_receipt": "runs/operations/20260916-ce3-restart/gpu-driver-readiness.json",
+    "vm_deallocation_requested": true,
+    "vm_deallocation_verified": true,
+    "vm_power_state": "Stopped (deallocated)",
+    "vm_power_state_observed_at": "2026-09-16T04:32:32.890Z",
+    "deallocation_receipt": "runs/operations/20260916-ce3-restart/deallocation-observation.json",
+    "best_effort_cost_followup": "Cleared after verified early deallocation; no session automation remains attached."
   },
 
   "execution": {
@@ -31,10 +43,10 @@
     "calibration_model_calls": 0,
     "checkpoints_downloaded": 0,
     "lenses_fitted": 0,
-    "gpu_hours": 0,
-    "cloud_resources_created": 0,
-    "cloud_provider": null,
-    "note": "Provisioning and staged experiment startup are authorized, but neither has begun. No resource deployment was submitted, model loaded, checkpoint downloaded, or scientific trial executed. Repository operation records must not be interpreted as experimental results."
+    "gpu_hours": null,
+    "cloud_resources_created": null,
+    "cloud_provider": "AzureChinaCloud",
+    "note": "One requested four-A100 VM was created, its guest GPUs/driver verified, then stopped/deallocated. Total resource inventory and prior charges are not fully reconciled; disks and IP remain chargeable. No model was loaded, checkpoint downloaded or scientific trial executed. Guest environment operations are not scientific results."
   },
 
   "phases": {
@@ -53,8 +65,8 @@
     "Subject and calibration revisions resolved and locked via `python -m wda.models.registry lock` (section 8.1).",
     "Upstream pinned commit vendored via tools/vendor_upstream.py (read-only, untracked).",
     "L_p re-verified against each subject's real tokenizer by assert_cue_length before the first model call (fact F3).",
-    "Restore Azure CLI access through sandbox policy; verify exact CE3 SKU/family and regional quota in the selected subscription.",
-    "Validate the prepared ARM template, image version, actual EA price, guest public key and shutdown/runtime limits before deployment.",
+    "Restore Azure CLI access through sandbox policy for reliable ongoing control; the requested CE3 SKU was provisioned through the portal, not independently quota-certified.",
+    "Reconcile the failed ARM component, full residual inventory, actual EA price and exact resolved OS image. Confirm a functioning runtime/deallocation plan before restarting GPU workloads.",
     "Complete and qualify actual reference readout and intermediate-swap interfaces; current entry points explicitly refuse unqualified execution.",
     "Resolve scientific token-J directions, native-template cue boundary and measured exposure equality. Synthetic SVD and toy forward tests cannot qualify these.",
     "Complete a deployable bounded model-facing calibration runner. No calibration or subject model was loaded during these repairs."
