@@ -19,7 +19,8 @@
     "login_verified_by_agent": true,
     "verified_portal_role": "Owner",
     "preferred_control_plane": "Azure CLI",
-    "blocker": "Portal login and Owner access to the chosen enabled subscription were verified. Azure CLI still cannot write its normal .azure command-log directory under the active sandbox. Subsequent portal sessions timed out or returned to sign-in; browser authentication is not CLI authentication. Await sandbox-policy adjustment, then perform read-only CE3 preflight. No bypass or deployment attempted.",
+    "blocker": "After renewed approval at 2026-09-16T10:53:09+08:00, native az cloud show still failed with PermissionError writing C:\\Users\\alanjiao\\.azure\\az.sess. In the authenticated portal, the requested CE3 NC96ads_A100_v4 row was present but could not be selected, including with Standard security and Ubuntu 22.04 Gen2; its price was unavailable. Live quota and capacity remain unknown. No deployment, quota-change request, token transfer or sandbox bypass was submitted.",
+    "portal_size_observation": "runs/operations/20260916-ce3-restart/portal-sku-observation.json",
     "authorization_record": "runs/operations/20260916-ce3-restart/authorization.json",
     "operations_log": "runs/operations/20260916-ce3-restart/log.jsonl",
     "report": "reports/ce3_restart_20260916.md"

@@ -1,0 +1,43 @@
+{
+  "schema": "wda/portal-sku-observation/1",
+  "observation_date": "2026-09-16",
+  "subscription_id": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
+  "location": "chinaeast3",
+  "requested_size": "Standard_NC96ads_A100_v4",
+  "source": "Authenticated Azure China portal VM creation size picker; visible UI only",
+  "controls_examined": [
+    {
+      "image": "Ubuntu Server 24.04 LTS - Gen2",
+      "security_type": "TrustedLaunch",
+      "row_present": true,
+      "row_selectable": false
+    },
+    {
+      "image": "Ubuntu Server 22.04 LTS - Gen2",
+      "security_type": "Standard",
+      "row_present": true,
+      "row_selectable": false
+    }
+  ],
+  "visible_size_row": {
+    "name": "NC96ads_A100_v4",
+    "type": "GPU",
+    "vcpus": 96,
+    "memory_gib": 880,
+    "maximum_data_disks": 32,
+    "maximum_iops": 120000,
+    "local_storage_display": "3576 (NVMe)",
+    "premium_disks_display": "Supported",
+    "monthly_cost_display": "Unavailable",
+    "currency": "CNY",
+    "row_aria_selected_after_selection_attempt": "false",
+    "select_button_aria_disabled": "true"
+  },
+  "verified_quota": null,
+  "verified_live_capacity": null,
+  "verified_price": null,
+  "resource_group_created": false,
+  "deployment_submitted": false,
+  "resources_created": 0,
+  "interpretation": "The exact requested row is present but was not selectable in the current portal flow, including Standard security with Ubuntu 22.04 Gen2. The UI does not identify whether the cause is quota, capacity, SKU restrictions, pricing/catalogue failure, or another portal issue. Do not report proven regional unavailability or quota exhaustion from this observation."
+}
