@@ -15,8 +15,10 @@
 > `d124de35-7837-4ffe-ba2b-2ec1d31477d0`, China East 3, through a fixed-input
 > ARM template in the portal. **The VM was Running even though the overall
 > deployment failed.** Four A100 80GB devices and driver 580.178.04 were then
-> verified. The VM is now **Stopped (deallocated)**, verified at
-> `2026-09-16T04:32:32.890Z`, with disks/logs retained. The failed component,
+> verified. The last agent-verified state was **Stopped (deallocated)** at
+> `2026-09-16T04:32:32.890Z`, with disks/logs retained. The operator subsequently
+> authorized restarting; browser control timed out and no restart command
+> has yet been sent. Current power state is therefore unverified. The failed component,
 > automatic shutdown and prior charges are not fully reconciled; retained
 > disks and the static public IP remain chargeable.
 > Local Azure CLI remains sandbox-blocked.
@@ -120,12 +122,20 @@ failure codes may re-run a `run_id`.
 python -m pip install -e ".[dev]"        # numpy / scipy / pytest; torch is optional at test time
 python -m pytest tests -q                # local engineering tests, not model qualification
 python tools/ce3_preflight.py            # prints the CLI plan; makes no Azure calls
+python tools/acquire_calibration.py       # prints the pinned model plan; no download/model call
 ```
 
 After the operator allows the Azure CLI configuration directory through the
 sandbox, `python tools/ce3_preflight.py --inspect-azure` performs **read-only**
 checks using the existing identity. It neither logs in nor deploys, switches
 cloud/subscription, extracts credentials, changes log paths, or retries a failure.
+
+`acquire_calibration.py --execute --run-dir <new-receipt-directory>` only acquires
+`Qwen/Qwen2.5-7B-Instruct@a09a35458c702b33eeacc393d103063234e8bc28`.
+It verifies pinned Hub Git/LFS digests and config dimensions, rejects incomplete
+or corrupted caches, and records every completed file. It never imports model
+code or runs inference; acquisition does not constitute instrument qualification.
+The actual download has not yet been started.
 
 Scientific runs require the schema-2 seal and measured prerequisite receipts.
 `seal verify --stage freeze1` currently refuses the old candidate **by design**.

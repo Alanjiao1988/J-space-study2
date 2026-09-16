@@ -2,7 +2,7 @@
   "schema": "wda/status/1",
   "project": "Fixed-Checkpoint Workspace-Dependence Audit",
   "protocol": "PROTOCOL_v1.1.md",
-  "state": "VM_CREATED_GPU_DRIVER_VERIFIED_DEALLOCATED_SCIENCE_NOT_STARTED",
+  "state": "VM_RESTART_AUTHORIZED_CONTROL_PLANE_BLOCKED_SCIENCE_NOT_STARTED",
   "updated_at": "2026-09-16",
 
   "restart_request": {
@@ -19,7 +19,7 @@
     "login_verified_by_agent": true,
     "verified_portal_role": "Owner",
     "preferred_control_plane": "Azure CLI",
-    "blocker": "Requested VM and four A100 80GB devices are verified; driver 580.178.04 passed readiness with exit 0. The VM was manually stopped/deallocated and verified at 2026-09-16T04:32:32.890Z to avoid idle compute billing. The aggregate ARM failure component and automatic-shutdown resource remain unverified; local CLI remains sandbox blocked. Scientific direction/reference/positive-control qualification, a bounded model runner and the new seal are outstanding. No model has been loaded.",
+    "blocker": "The operator explicitly requested restarting at 2026-09-16T12:39:51+08:00 and objected to stopping solely for preparation costs. Browser control requests timed out; no new start or stop command was issued. The later requested device-code flow could not initialize: native az cloud set failed on C:\\Users\\alanjiao\\.azure\\az.sess. No device code was generated and no password was reused for CLI. Model acquisition tooling is prepared but has not been executed. Scientific instrument gates remain in force.",
     "portal_size_observation": "runs/operations/20260916-ce3-restart/portal-sku-observation.json",
     "authorization_record": "runs/operations/20260916-ce3-restart/authorization.json",
     "operations_log": "runs/operations/20260916-ce3-restart/log.jsonl",
@@ -32,10 +32,14 @@
     "gpu_driver_receipt": "runs/operations/20260916-ce3-restart/gpu-driver-readiness.json",
     "vm_deallocation_requested": true,
     "vm_deallocation_verified": true,
-    "vm_power_state": "Stopped (deallocated)",
+    "vm_power_state": null,
+    "last_agent_verified_vm_power_state": "Stopped (deallocated)",
     "vm_power_state_observed_at": "2026-09-16T04:32:32.890Z",
     "deallocation_receipt": "runs/operations/20260916-ce3-restart/deallocation-observation.json",
-    "best_effort_cost_followup": "Cleared after verified early deallocation; no session automation remains attached."
+    "best_effort_cost_followup": "Cleared after the earlier verified deallocation; no session automation remains attached.",
+    "latest_restart_authorization": "2026-09-16T12:39:51.796+08:00",
+    "restart_command_sent_after_latest_authorization": false,
+    "policy": "Do not stop solely because engineering preparation is incomplete. Report actual readiness, access failures and any operational limit explicitly."
   },
 
   "execution": {

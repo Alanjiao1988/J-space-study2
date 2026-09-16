@@ -18,6 +18,7 @@ third_party/jacobian-lens/*/
 *.bin
 *.pt
 hf_cache/
+.wda-model-cache/
 
 # Fitted lenses are large; only their hashes enter FREEZE-2.json.
 artifacts/lenses/
