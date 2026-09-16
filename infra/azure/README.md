@@ -11,11 +11,22 @@ shutdown schedule. These associated resources are not free merely because
 the VM is deallocated. No resource-group creation or deployment has been
 submitted by preparing these files.
 
-The template uses `auditVmSku` and `guestPublicKey` rather than the portal's
-automatically recognized `vmSize`/`sshPublicKey` form fields. This keeps the
-explicit SKU whitelist and supplied public key instead of invoking the
-unresponsive size picker or proposing a new persisted Azure SSH-key resource.
-The ARM hardware profile and public-key properties are unchanged.
+Renaming parameters to `auditVmSku` and `guestPublicKey` did **not** stop Azure
+Portal from recognizing their resource-property uses and generating special
+VM-size/SSH-key controls. That attempted remedy is not a verified fix.
+
+`ce3-a100x4.resolved.json` is a dated, generated alternative for the official
+"Deploy to Azure" URL loader. It has no editable parameters: the fixed inputs
+are ARM variables and the hardware/network properties are unchanged. A public
+guest key was generated in memory; the private key was never serialized.
+Administration is through Azure VM Run Command, not SSH.
+
+This resolved template uses the infrastructure image alias `latest` **only
+for initial environment provisioning**, unlike the exact-version reusable
+template. Before any experiment setup, record the actual resolved image
+version and pin the software/model artifacts. It grants no scientific seal or
+qualification. The dated shutdown value expires; never redeploy this snapshot
+on another day without a new approved, recorded shutdown deadline.
 
 ## Mandatory preflight
 

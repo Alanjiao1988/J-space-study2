@@ -1,0 +1,251 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "purpose": "One four-A100 CE3 host; preparing this template does not deploy resources or authorize scientific execution.",
+    "subscriptionId": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
+    "network": "Outbound internet via a dedicated public IP; all inbound traffic denied. Use Azure VM Run Command for administration.",
+    "shutdown": "A daily Azure shutdown schedule is included, but is NOT a cumulative GPU-hour limit. Runtime and actual deallocation require verification.",
+    "validation": "Live SKU availability, API versions, image, quota, EA price and policy must be checked before deployment.",
+    "source_template_sha256": "18c6cf02d68d3af468e2a1a2ded3a5ea6a64942f9d264401d8d0795450f8812b",
+    "generated_at": "2026-09-16T03:50:45.553107+00:00",
+    "planned_shutdown_utc": "2026-09-16T07:50:45.553107+00:00",
+    "guest_authentication": "Generated public-only guest key; private key was never serialized. No inbound SSH. Administer using Azure VM Run Command.",
+    "image_reference_policy": "Infrastructure-only latest alias; capture resolved exact image version before installing the experiment environment. No scientific run is authorized by this template.",
+    "runtime_policy": "Approximately four wall hours from template generation (16 GPU-hours on four cards), not a guaranteed deallocation receipt. Verify shutdown schedule and deallocate if blocked; retained disks and IP incur separate charges.",
+    "live_quota_price_capacity_verified": false,
+    "portal_form_policy": "No editable parameters; fixed inputs in ARM variables avoid auto-generated form helpers. ARM validation and deployment controls remain authoritative."
+  },
+  "parameters": {},
+  "variables": {
+    "vnetName": "[concat(variables('resolvedInputs').vmName, '-vnet')]",
+    "subnetName": "workload",
+    "nsgName": "[concat(variables('resolvedInputs').vmName, '-nsg')]",
+    "nicName": "[concat(variables('resolvedInputs').vmName, '-nic')]",
+    "ipName": "[concat(variables('resolvedInputs').vmName, '-outbound-ip')]",
+    "tags": {
+      "project": "J-space-study2",
+      "purpose": "instrument-qualification",
+      "operationRecord": "20260916-ce3-restart",
+      "scientificExecution": "requires-qualified-instrument-and-seal"
+    },
+    "resolvedInputs": {
+      "location": "chinaeast3",
+      "vmName": "wda-ce3-a100x4-0916",
+      "auditVmSku": "Standard_NC96ads_A100_v4",
+      "adminUsername": "wdaadmin",
+      "guestPublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJUmestCCzMyZ2ReNA1STl88XDAZlLSpBVbvSKVQfS1V",
+      "imageVersion": "latest",
+      "shutdownTimeUtc": "0750",
+      "dataDiskSizeGB": 512
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgName')]",
+      "location": "[variables('resolvedInputs').location]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "DenyAllInbound",
+            "properties": {
+              "priority": 100,
+              "access": "Deny",
+              "direction": "Inbound",
+              "protocol": "*",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[variables('resolvedInputs').location]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.47.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "10.47.0.0/24",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('ipName')]",
+      "location": "[variables('resolvedInputs').location]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nicName')]",
+      "location": "[variables('resolvedInputs').location]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "primary",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetName'))]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('resolvedInputs').vmName]",
+      "location": "[variables('resolvedInputs').location]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('resolvedInputs').auditVmSku]"
+        },
+        "osProfile": {
+          "computerName": "[variables('resolvedInputs').vmName]",
+          "adminUsername": "[variables('resolvedInputs').adminUsername]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "provisionVMAgent": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[concat('/home/', variables('resolvedInputs').adminUsername, '/.ssh/authorized_keys')]",
+                  "keyData": "[variables('resolvedInputs').guestPublicKey]"
+                }
+              ]
+            }
+          }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "Canonical",
+            "offer": "0001-com-ubuntu-server-jammy",
+            "sku": "22_04-lts-gen2",
+            "version": "[variables('resolvedInputs').imageVersion]"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "deleteOption": "Delete",
+            "diskSizeGB": 128,
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          },
+          "dataDisks": [
+            {
+              "lun": 0,
+              "createOption": "Empty",
+              "deleteOption": "Detach",
+              "diskSizeGB": "[variables('resolvedInputs').dataDiskSizeGB]",
+              "managedDisk": {
+                "storageAccountType": "Premium_LRS"
+              }
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]",
+              "properties": {
+                "primary": true,
+                "deleteOption": "Delete"
+              }
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.DevTestLab/schedules",
+      "apiVersion": "2018-09-15",
+      "name": "[concat('shutdown-computevm-', variables('resolvedInputs').vmName)]",
+      "location": "[variables('resolvedInputs').location]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('resolvedInputs').vmName)]"
+      ],
+      "properties": {
+        "status": "Enabled",
+        "taskType": "ComputeVmShutdownTask",
+        "dailyRecurrence": {
+          "time": "[variables('resolvedInputs').shutdownTimeUtc]"
+        },
+        "timeZoneId": "UTC",
+        "targetResourceId": "[resourceId('Microsoft.Compute/virtualMachines', variables('resolvedInputs').vmName)]",
+        "notificationSettings": {
+          "status": "Disabled"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "vmResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Compute/virtualMachines', variables('resolvedInputs').vmName)]"
+    },
+    "location": {
+      "type": "string",
+      "value": "[variables('resolvedInputs').location]"
+    },
+    "vmSize": {
+      "type": "string",
+      "value": "[variables('resolvedInputs').auditVmSku]"
+    },
+    "shutdownTimeUtc": {
+      "type": "string",
+      "value": "[variables('resolvedInputs').shutdownTimeUtc]"
+    }
+  }
+}

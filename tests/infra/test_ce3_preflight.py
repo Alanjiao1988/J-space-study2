@@ -79,3 +79,19 @@ def test_template_has_one_vm_and_no_inbound_allow_rule():
     assert value["parameters"]["auditVmSku"]["allowedValues"] == ["Standard_NC96ads_A100_v4"]
     for key in ("guestPublicKey", "shutdownTimeUtc", "imageVersion"):
         assert "defaultValue" not in value["parameters"][key]
+
+
+def test_resolved_portal_snapshot_preserves_scope_and_does_not_store_private_keys():
+    path = Path(__file__).resolve().parents[2] / "infra/azure/ce3-a100x4.resolved.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    assert value["parameters"] == {}
+    inputs = value["variables"]["resolvedInputs"]
+    assert inputs["location"] == "chinaeast3"
+    assert inputs["auditVmSku"] == "Standard_NC96ads_A100_v4"
+    assert inputs["guestPublicKey"].startswith("ssh-ed25519 ")
+    assert "PRIVATE KEY" not in path.read_text(encoding="utf-8")
+    assert "parameters('" not in path.read_text(encoding="utf-8")
+    assert value["metadata"]["live_quota_price_capacity_verified"] is False
+    assert len([r for r in value["resources"] if r["type"] == "Microsoft.Compute/virtualMachines"]) == 1
+    schedule = next(r for r in value["resources"] if r["type"] == "Microsoft.DevTestLab/schedules")
+    assert schedule["properties"]["status"] == "Enabled"
