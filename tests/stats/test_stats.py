@@ -122,41 +122,25 @@ class TestHolm:
 # =========================================================================== bootstrap ===
 
 
-def make_frame(
-    *,
-    n_items: int = 60,
-    lenses=("real_a", "real_b"),
-    p_treat=(0.90, 0.40, 0.90, 0.80),
-    p_comp=(0.90, 0.55, 0.90, 0.85),
-    seed: int = 0,
-) -> TrialFrame:
-    """Thin wrapper over the shared ``conftest.build_frame`` helper."""
-    from conftest import build_frame
-
-    return build_frame(
-        n_items=n_items, lenses=lenses, p_treat=p_treat, p_comp=p_comp, seed=seed
-    )
-
-
 class TestTrialFrame:
-    def test_itt_forces_unparseable_to_incorrect(self):
-        frame = TrialFrame.from_records(
-            [
-                {
-                    "lens_id": "real_a",
-                    "item_id": "i1",
-                    "template_id": "t",
-                    "model_role": "treatment",
-                    "condition": C_DIRECT,
-                    "ablation_state": CLEAN,
-                    "parsed": False,
-                    "correct": True,  # inconsistent input
-                }
-            ]
-        )
-        assert bool(frame.correct[0]) is False
+    def test_itt_rejects_inconsistent_verdicts_without_rewriting_them(self):
+        with pytest.raises(ValueError, match="correct but not parseable"):
+            TrialFrame.from_records(
+                [
+                    {
+                        "lens_id": "real_a",
+                        "item_id": "i1",
+                        "template_id": "t",
+                        "model_role": "treatment",
+                        "condition": C_DIRECT,
+                        "ablation_state": CLEAN,
+                        "parsed": False,
+                        "correct": True,
+                    }
+                ]
+            )
 
-    def test_estimands_recover_the_generating_probabilities(self):
+    def test_estimands_recover_the_generating_probabilities(self, make_frame):
         frame = make_frame(n_items=4000, seed=7)
         # G = (0.90-0.40) - (0.90-0.80) = 0.40 for the treatment
         assert g_primary(frame, "treatment") == pytest.approx(0.40, abs=0.03)
@@ -170,37 +154,37 @@ class TestHierarchicalBootstrap:
         with pytest.raises(BootstrapViolation, match="flat trial-level bootstrap is forbidden"):
             trial_bootstrap()
 
-    def test_lens_must_be_the_outermost_level(self):
+    def test_lens_must_be_the_outermost_level(self, make_frame):
         frame = make_frame(n_items=10)
         with pytest.raises(BootstrapViolation, match="outermost bootstrap level"):
             hierarchical_bootstrap(frame, n_resamples=5, levels=("item_id", "lens_id"))
 
-    def test_intervals_are_nested_and_cover_the_estimate(self):
+    def test_intervals_are_nested_and_cover_the_estimate(self, make_frame):
         frame = make_frame(n_items=80, seed=3)
         result = hierarchical_bootstrap(frame, n_resamples=300, seed=1)
         ci95, ci90 = result.interval(0.95), result.interval(0.90)
         assert ci95.low <= ci90.low <= ci90.high <= ci95.high
         assert ci95.low <= result.estimate <= ci95.high
 
-    def test_result_feeds_the_decision_rule(self):
+    def test_result_feeds_the_decision_rule(self, make_frame):
         frame = make_frame(n_items=200, p_treat=(0.95, 0.20, 0.95, 0.92),
                            p_comp=(0.95, 0.90, 0.95, 0.92), seed=11)
         result = hierarchical_bootstrap(frame, n_resamples=400, seed=2)
         d = decide(result.estimate, result.interval(0.95), result.interval(0.90), DELTA)
         assert d.outcome is Outcome.MATERIAL
 
-    def test_narrow_effect_yields_equivalence(self):
+    def test_narrow_effect_yields_equivalence(self, make_frame):
         frame = make_frame(n_items=400, p_treat=(0.90, 0.50, 0.90, 0.70),
                            p_comp=(0.90, 0.50, 0.90, 0.70), seed=5)
         result = hierarchical_bootstrap(frame, n_resamples=400, seed=4)
         d = decide(result.estimate, result.interval(0.95), result.interval(0.90), DELTA)
         assert d.outcome in (Outcome.EQUIVALENT, Outcome.INCONCLUSIVE)
 
-    def test_resampling_preserves_item_pairing(self):
+    def test_resampling_preserves_item_pairing(self, make_frame):
         """All four cells of a drawn item must travel together (§9.3)."""
         from wda.stats.bootstrap import LEVELS, _resample_indices
 
-        frame = make_frame(n_items=12, lenses=("real_a",), seed=0)
+        frame = make_frame(n_items=12, seed=0)
         index = _resample_indices(frame, np.random.default_rng(0), LEVELS)
         drawn = frame.take(index)
         for item in set(drawn.item_id.tolist()):
@@ -253,7 +237,10 @@ class TestPower:
     def test_plan_is_serialisable_and_reports_the_operative_n(self):
         p = pw.CellProbabilities(0.90, 0.50, 0.90, 0.80)
         cov = pw.covariance_from_correlation(p, 0.4)
-        plan = pw.plan(cov, cov, delta=0.10, d_true=0.20)
+        plan = pw.plan(
+            cov, cov, delta=0.10, d_true=0.20,
+            basis="material", cross_model_assumption="independent",
+        )
         assert plan["n_operative"] >= plan["n_conventional"]
         assert plan["achieved_power_conventional"] >= 0.80
 

@@ -1,9 +1,9 @@
-"""Lens-coordinate patching (§14 ``intervene/patch.py``).
+"""Synthetic SVD-coordinate patching, NOT upstream probe-swap or a qualified assay.
 
 Read the residual stream in the lens's own coordinate system (``V^+`` from the SVD of
 ``J_l``), substitute the donor's coordinates on the selected components, then write back.
-This is the operation behind probe-swap and the verbal-report swap, and it is the only
-place a *donor* representation is allowed to enter a recipient forward pass.
+Equivalence to probe-swap has not been established. Real experiment entry points
+must call ``require_scientific_interventions`` and remain blocked.
 
 Two paired controls travel with every swap and are not optional (§7):
 
@@ -24,6 +24,7 @@ import numpy as np
 
 from wda.errors import ProtocolViolation
 from wda.lens.fit import LensBundle
+from wda.intervene.subspace import canonical_svd, floating_vector
 
 
 class PatchViolation(ProtocolViolation):
@@ -42,7 +43,7 @@ class LensBasis:
     @classmethod
     def from_bundle(cls, bundle: LensBundle, layer: int) -> "LensBasis":
         j = np.asarray(bundle.matrix(layer), dtype=np.float64)
-        u, s, vt = np.linalg.svd(j, full_matrices=False)
+        u, s, vt = canonical_svd(j)
         return cls(layer=int(layer), u=u, s=s, vt=vt)
 
     @property
@@ -79,19 +80,20 @@ def swap_lens_coordinates(
 ) -> np.ndarray:
     """Replace the recipient's lens coordinates on ``components`` with the donor's.
 
-    Everything outside ``components`` is left bit-identical to the recipient, so the swap
-    is confined to the J-space subspace by construction.
+    This synthetic utility preserves the complement to numerical precision, not
+    bit-identically. It does not define the published probe-swap intervention.
     """
     idx = np.asarray(list(components), dtype=int)
+    h = floating_vector(recipient)
+    other = floating_vector(donor)
+    if h.shape != other.shape or h.size != basis.vt.shape[1]:
+        raise PatchViolation("recipient/donor/basis dimensions differ")
     if idx.size == 0:
-        return np.asarray(recipient, dtype=np.float64).copy()
-    if idx.max(initial=-1) >= basis.rank:
+        return h.copy()
+    if idx.min() < 0 or idx.max(initial=-1) >= basis.rank or len(np.unique(idx)) != len(idx):
         raise PatchViolation(f"component index {int(idx.max())} exceeds lens rank {basis.rank}")
-    c_recipient = basis.coordinates(recipient)
-    c_donor = basis.coordinates(donor)
-    c_out = c_recipient.copy()
-    c_out[idx] = c_donor[idx]
-    return basis.reconstruct(c_out)
+    rows = basis.vt[idx].astype(h.dtype, copy=False)
+    return h + rows.T @ (rows @ (other.astype(h.dtype, copy=False) - h))
 
 
 def permute_singular_coordinates(

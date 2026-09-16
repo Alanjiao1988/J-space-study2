@@ -18,11 +18,18 @@ has zero evidential weight and may not compute or inspect ``D`` or ``G`` (§10, 
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
+from numbers import Real
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from wda.governance import blind
+
+
+def _finite(value: float, name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite real number")
 
 
 class Outcome(str, Enum):
@@ -49,6 +56,8 @@ class Interval:
     level: float
 
     def __post_init__(self) -> None:
+        for name in ("low", "high", "level"):
+            _finite(getattr(self, name), name)
         if self.high < self.low:
             raise ValueError(f"interval bounds inverted: [{self.low}, {self.high}]")
         if not 0.0 < self.level < 1.0:
@@ -115,6 +124,8 @@ def decide(
     """Apply the frozen §9.2 rule. Never call this during Phase A."""
     blind.guard_decision(f"wda.stats.decision.decide(endpoint={endpoint!r})")
 
+    _finite(point_estimate, "point_estimate")
+    _finite(delta, "delta")
     if delta <= 0:
         raise ValueError("delta must be positive; it is fixed a priori at Freeze-1 (§9.1)")
     if abs(ci95.level - 0.95) > 1e-9:
@@ -179,9 +190,13 @@ def holm(pvalues: Mapping[str, float], alpha: float = 0.05) -> Dict[str, Dict[st
     in here.
     """
     blind.guard_decision("wda.stats.decision.holm")
+    _finite(alpha, "alpha")
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must be in (0, 1)")
     if not pvalues:
         return {}
     for name, p in pvalues.items():
+        _finite(p, f"p-value for {name!r}")
         if not 0.0 <= p <= 1.0:
             raise ValueError(f"p-value for {name!r} out of range: {p}")
 

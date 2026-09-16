@@ -16,15 +16,19 @@ the 7B and 14B checkpoints produced 240/240 unparseable outputs, the 7B opening 
 ``151649`` (``</think>``) and the 14B with ``32313`` (``Okay``). A pipeline that silently
 dropped unparseable rows would have reported an accuracy computed on an empty denominator.
 
-Following the predecessor's ``study4f_interfaces.py``, parsing is **exact**: the answer
-surface is located by explicit tokenisation and integer comparison, never by an unanchored
-regular expression.
+The complete answer surface must match ``[+-]?[0-9]+``, allowing whitespace only
+around it. Signs are significant; prose, punctuation and Unicode digits are not
+answers. For ``C_gen`` this grammar applies to the entire suffix of the final
+literal answer cue, not to a number extracted from that suffix.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import math
+import re
+from dataclasses import dataclass
 from enum import Enum
+from numbers import Integral, Real
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from wda.errors import ProtocolViolation
@@ -39,6 +43,7 @@ class Verdict(str, Enum):
     UNPARSEABLE_MULTIPLE_INTEGERS = "UNPARSEABLE_MULTIPLE_INTEGERS"
     UNPARSEABLE_REASONING_SPAN = "UNPARSEABLE_REASONING_SPAN"
     UNPARSEABLE_EMPTY = "UNPARSEABLE_EMPTY"
+    UNPARSEABLE_INVALID_SURFACE = "UNPARSEABLE_INVALID_SURFACE"
 
     @property
     def parsed(self) -> bool:
@@ -81,45 +86,49 @@ class ParseResult:
         }
 
 
-def _integer_tokens(text: str) -> List[int]:
-    """Every maximal run of digits in ``text``, as integers. Exact, not regex-anchored."""
-    out: List[int] = []
-    digits: List[str] = []
-    for ch in text:
-        if ch.isdigit():
-            digits.append(ch)
-        elif digits:
-            out.append(int("".join(digits)))
-            digits = []
-    if digits:
-        out.append(int("".join(digits)))
-    return out
+_SIGNED_ASCII_INTEGER = re.compile(r"[+-]?[0-9]+")
+
+
+def _validate_inputs(generated_text: str, expected: int) -> None:
+    if not isinstance(generated_text, str):
+        raise TypeError("generated_text must be a string")
+    if isinstance(expected, bool) or not isinstance(expected, Integral):
+        raise TypeError("expected must be a signed integer, not a coerced string or boolean")
+
+
+def _parse_surface(text: str, expected: int) -> ParseResult:
+    if not text:
+        return ParseResult(Verdict.UNPARSEABLE_EMPTY, None, text)
+    if any(marker in text for marker in REASONING_SPAN_MARKERS):
+        return ParseResult(Verdict.UNPARSEABLE_REASONING_SPAN, None, text)
+    if _SIGNED_ASCII_INTEGER.fullmatch(text) is None:
+        # Diagnostic only: never select or coerce a number from an invalid surface.
+        count = sum(_SIGNED_ASCII_INTEGER.fullmatch(token) is not None for token in text.split())
+        verdict = (
+            Verdict.UNPARSEABLE_MULTIPLE_INTEGERS
+            if count > 1
+            else Verdict.UNPARSEABLE_INVALID_SURFACE
+        )
+        return ParseResult(verdict, None, text)
+    value = int(text)
+    verdict = Verdict.CORRECT if value == expected else Verdict.INCORRECT_WRONG_VALUE
+    return ParseResult(verdict, value, text)
 
 
 def parse_direct_answer(generated_text: str, expected: int) -> ParseResult:
     """Parse a ``C_direct`` / ``C_frozen`` continuation (§5: "final integer only").
 
-    A legal surface contains **exactly one** integer. Two or more integers is unparseable
-    rather than "take the last one": a rule that picks one of several is a scoring
-    convention that could silently absorb a compliance failure into an accuracy number.
+    Only a complete signed ASCII integer is legal; no prose or digit extraction.
     """
-    text = generated_text.strip()
-    if not text:
-        return ParseResult(Verdict.UNPARSEABLE_EMPTY, None, text)
-    if any(marker in generated_text for marker in REASONING_SPAN_MARKERS):
-        return ParseResult(Verdict.UNPARSEABLE_REASONING_SPAN, None, text)
-    values = _integer_tokens(text)
-    if not values:
-        return ParseResult(Verdict.UNPARSEABLE_NO_INTEGER, None, text)
-    if len(values) > 1:
-        return ParseResult(Verdict.UNPARSEABLE_MULTIPLE_INTEGERS, None, text)
-    value = values[0]
-    verdict = Verdict.CORRECT if value == expected else Verdict.INCORRECT_WRONG_VALUE
-    return ParseResult(verdict, value, text)
+    _validate_inputs(generated_text, expected)
+    return _parse_surface(generated_text.strip(), expected)
 
 
 def parse_generated_cot(generated_text: str, expected: int, *, answer_cue: str = "Final answer:") -> ParseResult:
-    """Parse a ``C_gen`` continuation: the answer is the integer after the final cue."""
+    """Parse only the exact signed-integer suffix after the final literal answer cue."""
+    _validate_inputs(generated_text, expected)
+    if not isinstance(answer_cue, str) or not answer_cue.strip():
+        raise ValueError("answer_cue must be a nonempty literal string")
     text = generated_text.strip()
     if not text:
         return ParseResult(Verdict.UNPARSEABLE_EMPTY, None, text)
@@ -127,14 +136,7 @@ def parse_generated_cot(generated_text: str, expected: int, *, answer_cue: str =
     if idx < 0:
         return ParseResult(Verdict.UNPARSEABLE_NO_INTEGER, None, text)
     tail = text[idx + len(answer_cue) :].strip()
-    values = _integer_tokens(tail)
-    if not values:
-        return ParseResult(Verdict.UNPARSEABLE_NO_INTEGER, None, tail)
-    if len(values) > 1:
-        return ParseResult(Verdict.UNPARSEABLE_MULTIPLE_INTEGERS, None, tail)
-    value = values[0]
-    verdict = Verdict.CORRECT if value == expected else Verdict.INCORRECT_WRONG_VALUE
-    return ParseResult(verdict, value, tail)
+    return _parse_surface(tail, expected)
 
 
 # --------------------------------------------------------------------------------------
@@ -150,6 +152,24 @@ class TripleEndpoint:
     n_parsed: int
     n_correct: int
     parseability_threshold: float
+
+    def __post_init__(self) -> None:
+        for name in ("n", "n_parsed", "n_correct"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, Integral) or value < 0:
+                raise ScoringViolation(f"{name} must be a nonnegative integer count")
+            object.__setattr__(self, name, int(value))
+        if not self.n_correct <= self.n_parsed <= self.n:
+            raise ScoringViolation("counts must satisfy 0 <= n_correct <= n_parsed <= n")
+        threshold = self.parseability_threshold
+        if (
+            isinstance(threshold, bool)
+            or not isinstance(threshold, Real)
+            or not math.isfinite(threshold)
+            or not 0.0 <= threshold <= 1.0
+        ):
+            raise ScoringViolation("parseability_threshold must be finite and in [0, 1]")
+        object.__setattr__(self, "parseability_threshold", float(threshold))
 
     @property
     def parseability(self) -> float:
@@ -171,14 +191,15 @@ class TripleEndpoint:
         return self.n > 0 and self.parseability < self.parseability_threshold
 
     def to_dict(self) -> Dict[str, object]:
+        """JSON-safe endpoints; undefined rates are null, never JSON NaN."""
         return {
             "n": self.n,
             "n_parsed": self.n_parsed,
             "n_correct": self.n_correct,
-            "parseability": self.parseability,
-            "conditional_accuracy": self.conditional_accuracy,
+            "parseability": self.parseability if self.n else None,
+            "conditional_accuracy": self.conditional_accuracy if self.n_parsed else None,
             "conditional_accuracy_label": "conditional on parseability — not an ITT quantity",
-            "itt_accuracy": self.itt_accuracy,
+            "itt_accuracy": self.itt_accuracy if self.n else None,
             "parseability_threshold": self.parseability_threshold,
             "feasibility_result": self.feasibility_result,
         }

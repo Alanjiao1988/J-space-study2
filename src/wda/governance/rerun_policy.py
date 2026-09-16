@@ -15,11 +15,15 @@ An exit code that is not a registered infrastructure code may never re-run the s
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Mapping, Optional
 
 from wda.errors import RerunRefused
+from wda.governance.artifacts import (
+    EvidenceError, check_ref, create_json, digest, identifier, local_path, read_json,
+)
 
 
 @dataclass(frozen=True)
@@ -72,8 +76,8 @@ INFRASTRUCTURE_CODES: Mapping[str, FailureCode] = {
     ),
 }
 
-#: Reasons that are always refused. Matching is substring-based and case-insensitive so
-#: that a paraphrase in a runner does not slip through.
+#: An additional diagnostic guard, NOT the authorization boundary. Immutable identity
+#: and a registered persisted failure event below are authoritative.
 FORBIDDEN_REASON_MARKERS = (
     "result",
     "unexpected",
@@ -103,10 +107,44 @@ FORBIDDEN_REASON_MARKERS = (
 
 @dataclass
 class RerunLedger:
-    """Per-``run_id`` attempt ledger, serialised into ``runs/<run_id>/log.jsonl``."""
+    """Create-only on-disk attempt ledger; reconstruction cannot reset the budget.
+
+    ``root`` is the run directory; ``identity`` is the immutable state.json
+    identity. Authorization also requires a runtime-generated failure reference
+    and the unchanged proposed identity. Free text never establishes eligibility.
+    """
 
     run_id: str
-    attempts: List[Dict[str, object]] = field(default_factory=list)
+    root: Optional[Path] = None
+    identity: Optional[dict] = None
+
+    @property
+    def attempts(self) -> List[Dict[str, object]]:
+        if self.root is None or self.identity is None:
+            raise RerunRefused("rerun authorization requires a durable run identity and ledger")
+        identifier(self.run_id)
+        folder = local_path(self.root, "reruns", file=False)
+        if not folder.exists():
+            return []
+        entries = []
+        counts: Dict[str, int] = {}
+        for index, path in enumerate(sorted(folder.iterdir()), 1):
+            local_path(self.root, path.relative_to(self.root).as_posix())
+            if path.name != f"{index:06d}.json":
+                raise RerunRefused("rerun ledger is malformed or incomplete")
+            item = read_json(path)
+            code = item.get("code")
+            counts[code] = counts.get(code, 0) + 1
+            if (
+                item.get("schema") != "wda/rerun-attempt/2"
+                or item.get("identity") != self.identity or item.get("run_id") != self.run_id
+                or code not in INFRASTRUCTURE_CODES or item.get("attempt") != counts[code]
+                or item.get("sha256") != digest({k: v for k, v in item.items() if k != "sha256"})
+            ):
+                raise RerunRefused("rerun ledger identity/count/hash mismatch")
+            check_ref(self.root, item.get("failure"))
+            entries.append(item)
+        return entries
 
     def counts(self) -> Dict[str, int]:
         out: Dict[str, int] = {}
@@ -115,20 +153,31 @@ class RerunLedger:
             out[code] = out.get(code, 0) + 1
         return out
 
-    def record(self, code: str, detail: str) -> Dict[str, object]:
+    def record(self, code: str, detail: str, failure: dict) -> Dict[str, object]:
+        attempts = self.attempts
+        spec = INFRASTRUCTURE_CODES[code]
         entry = {
+            "schema": "wda/rerun-attempt/2",
             "run_id": self.run_id,
+            "identity": self.identity,
             "code": code,
             "detail": detail,
             "attempt": self.counts().get(code, 0) + 1,
             "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "failure": failure,
+            "recovery": spec.recovery,
+            "max_attempts": spec.max_attempts,
         }
-        self.attempts.append(entry)
+        entry["sha256"] = digest(entry)
+        try:
+            create_json(self.root / "reruns" / f"{len(attempts) + 1:06d}.json", entry)
+        except FileExistsError as exc:
+            raise RerunRefused("concurrent rerun attempt; no second authorization was issued") from exc
         return entry
 
     def to_dict(self) -> Dict[str, object]:
         return {
-            "schema": "wda/rerun_ledger/1",
+            "schema": "wda/rerun_ledger/2",
             "run_id": self.run_id,
             "attempts": list(self.attempts),
             "counts": self.counts(),
@@ -144,7 +193,10 @@ def classify(reason: str) -> Optional[str]:
     return None
 
 
-def authorize(ledger: RerunLedger, code: str, reason: str) -> Dict[str, object]:
+def authorize(
+    ledger: RerunLedger, code: str, reason: str, *,
+    failure: Optional[dict] = None, proposed_identity: Optional[dict] = None,
+) -> Dict[str, object]:
     """Authorise one infrastructure re-run of ``ledger.run_id``, or raise.
 
     Raises
@@ -166,6 +218,24 @@ def authorize(ledger: RerunLedger, code: str, reason: str) -> Dict[str, object]:
             "scientific re-run and is refused unconditionally (§11). Report the result "
             "as it stands — SC2/SC3 are legitimate outcomes."
         )
+    if proposed_identity is None or proposed_identity != ledger.identity:
+        raise RerunRefused("scientific re-run: immutable config/seal identity may not change")
+    try:
+        if ledger.root is None:
+            raise EvidenceError("missing durable ledger")
+        incident = read_json(check_ref(ledger.root, failure))
+        if (
+            incident.get("schema") != "wda/runtime-failure/1"
+            or incident.get("code") != code or incident.get("retryable") is not True
+            or incident.get("identity") != ledger.identity
+            or incident.get("run_id") != ledger.run_id
+            or not failure["path"].startswith("failures/")
+        ):
+            raise EvidenceError("code does not match an eligible recorded runtime failure")
+        if any(item["failure"] == failure for item in ledger.attempts):
+            raise EvidenceError("this failure already consumed its single restart authorization")
+    except EvidenceError as exc:
+        raise RerunRefused(str(exc)) from exc
     spec = INFRASTRUCTURE_CODES[code]
     used = ledger.counts().get(code, 0)
     if used >= spec.max_attempts:
@@ -173,10 +243,7 @@ def authorize(ledger: RerunLedger, code: str, reason: str) -> Dict[str, object]:
             f"{code} has already been used {used}/{spec.max_attempts} times for "
             f"run_id={ledger.run_id!r}; the pre-registered budget is exhausted."
         )
-    entry = ledger.record(code, reason)
-    entry["recovery"] = spec.recovery
-    entry["max_attempts"] = spec.max_attempts
-    return entry
+    return ledger.record(code, reason, failure)
 
 
 def policy_snapshot() -> Dict[str, object]:

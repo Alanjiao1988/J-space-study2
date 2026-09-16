@@ -1,4 +1,8 @@
-"""J-space ablation (§5, frozen elements).
+"""Synthetic/engineering subspace fixtures; NOT qualified J-space experiments.
+
+The SVD interpretation below is unverified against the scientific token-J definition.
+No published ablation/patch API exists in the pinned upstream. Scientific callers must
+call ``require_scientific_interventions`` and remain blocked pending validation.
 
 At **every layer of the workspace band** and **every position of window W**:
 
@@ -30,6 +34,12 @@ import numpy as np
 from wda.errors import ProtocolViolation
 from wda.intervene import precision
 from wda.lens.fit import LensBundle, rms_norm
+from wda.intervene.subspace import (
+    SubspaceProjector,
+    canonical_svd,
+    floating_vector,
+    require_scientific_interventions,
+)
 
 #: Frozen at Freeze-1 (§15.3).
 SKIP_CLEAN_TOP = 10
@@ -116,13 +126,40 @@ def direction_readout_tokens(
     directions: np.ndarray,
     unembed: np.ndarray,
 ) -> np.ndarray:
-    """The lens readout token of each candidate direction — used by the skip rule (§5)."""
+    """Synthetic positive-orientation readout; not a scientific skip-rule definition."""
     j = np.asarray(bundle.matrix(layer), dtype=np.float64)
     dirs = np.atleast_2d(np.asarray(directions, dtype=np.float64))
     projected = dirs @ j.T
-    normed = np.stack([rms_norm(row) for row in projected])
-    logits = normed @ np.asarray(unembed, dtype=np.float64).T
-    return np.argmax(logits, axis=1)
+    if not len(dirs):
+        return np.empty(0, dtype=int)
+    # Bound the temporary vocabulary matrix instead of materialising d_model x vocab.
+    tokens = []
+    for start in range(0, len(projected), 8):
+        normed = rms_norm(projected[start : start + 8])
+        logits = normed @ np.asarray(unembed, dtype=np.float64).T
+        tokens.extend(np.argmax(logits, axis=1).tolist())
+    return np.asarray(tokens, dtype=int)
+
+
+@dataclass(frozen=True)
+class SyntheticDirectionCache:
+    """One explicit layer snapshot, reused across positions; never a scientific provider."""
+
+    layer: int
+    directions: np.ndarray
+    positive_tokens: np.ndarray
+    negative_tokens: np.ndarray
+
+    @classmethod
+    def prepare(cls, bundle: LensBundle, layer: int, unembed: np.ndarray):
+        _, singular, vt = canonical_svd(np.asarray(bundle.matrix(layer), dtype=np.float64))
+        tolerance = np.finfo(vt.dtype).eps * max(bundle.matrix(layer).shape) * singular[0]
+        vt = vt[singular > tolerance]
+        positive = direction_readout_tokens(bundle, layer, vt, unembed)
+        negative = direction_readout_tokens(bundle, layer, -vt, unembed)
+        for array in (vt, positive, negative):
+            array.setflags(write=False)
+        return cls(layer, vt, positive, negative)
 
 
 def select_ablation_directions(
@@ -134,35 +171,43 @@ def select_ablation_directions(
     k: int,
     clean_top_tokens: Iterable[int],
     skip_clean_top: int = SKIP_CLEAN_TOP,
+    cache: Optional[SyntheticDirectionCache] = None,
 ) -> Tuple[np.ndarray, Dict[str, object]]:
-    """Return the ``k`` admissible directions at one (layer, position), plus a receipt.
+    """Return synthetic ``k`` admissible SVD directions, never a qualified experiment.
 
     Candidates are ranked by the magnitude of the clean-pass projection. A candidate whose
     lens readout token is among the clean pass's top-``skip_clean_top`` tokens is skipped
     and the next-strongest is taken, so exactly ``k`` directions are ablated whenever that
     many admissible ones exist.
     """
+    h = floating_vector(hidden)
+    if k < 0 or skip_clean_top != SKIP_CLEAN_TOP:
+        raise AblationViolation("k must be nonnegative and skip_clean_top is frozen at 10")
     if k == 0:
-        return np.zeros((0, len(hidden)), dtype=np.float64), {
+        return np.zeros((0, len(hidden)), dtype=h.dtype), {
             "requested_k": 0,
             "selected": 0,
             "skipped_tokens": [],
             "noop": True,
+            "qualification": "synthetic/engineering_only",
         }
     skip = set(int(t) for t in list(clean_top_tokens)[:skip_clean_top])
-    j = np.asarray(bundle.matrix(layer), dtype=np.float64)
-    _, _, vt = np.linalg.svd(j, full_matrices=False)
-    coeffs = vt @ np.asarray(hidden, dtype=np.float64)
-    order = np.argsort(-np.abs(coeffs))
-
-    tokens = direction_readout_tokens(bundle, layer, vt[order], unembed)
+    cache = cache or SyntheticDirectionCache.prepare(bundle, layer, unembed)
+    if cache.layer != layer or cache.directions.shape[1] != h.size:
+        raise AblationViolation("direction cache does not match layer/hidden dimension")
+    vt = cache.directions
+    coeffs = vt @ h
+    order = np.argsort(-np.abs(coeffs), kind="stable")
     chosen: List[int] = []
     skipped: List[Dict[str, int]] = []
     for rank, idx in enumerate(order):
         if len(chosen) == k:
             break
-        token = int(tokens[rank])
-        if token in skip:
+        token = int(cache.positive_tokens[idx])
+        negative_token = int(cache.negative_tokens[idx])
+        # Both orientations are excluded: skip decisions cannot flip with an SVD sign.
+        if token in skip or negative_token in skip:
+            token = token if token in skip else negative_token
             skipped.append({"direction_rank": int(rank), "readout_token": token})
             continue
         chosen.append(int(idx))
@@ -174,6 +219,8 @@ def select_ablation_directions(
         "skip_clean_top": skip_clean_top,
         "noop": False,
         "exhausted": len(chosen) < k,
+        "qualification": "synthetic/engineering_only",
+        "skip_interpretation": "both_svd_orientations_unvalidated",
     }
     return vt[chosen], receipt
 
@@ -189,12 +236,8 @@ def project_out(hidden: np.ndarray, directions: np.ndarray) -> np.ndarray:
     The rows are treated as a subspace basis and orthonormalised first, so the result is
     exact even if the rows are not perfectly orthogonal after a numerical SVD.
     """
-    h = np.asarray(hidden, dtype=np.float64)
-    dirs = np.atleast_2d(np.asarray(directions, dtype=np.float64))
-    if dirs.size == 0:
-        return h.copy()
-    q, _ = np.linalg.qr(dirs.T)
-    return h - q @ (q.T @ h)
+    h = floating_vector(hidden)
+    return SubspaceProjector.prepare(directions, h.size, dtype=h.dtype).remove(h)
 
 
 def removed_norm(hidden: np.ndarray, directions: np.ndarray) -> float:
@@ -233,8 +276,10 @@ def ablate_at(
     unembed: np.ndarray,
     spec: AblationSpec,
     clean_top_tokens: Iterable[int],
+    *,
+    cache: Optional[SyntheticDirectionCache] = None,
 ) -> Tuple[np.ndarray, AblationReceipt]:
-    """Apply the frozen ablation at one (layer, position). Returns ``(hidden', receipt)``."""
+    """Synthetic fixture only. Returns ``(hidden', receipt)``; not a scientific API."""
     directions, sel = select_ablation_directions(
         bundle,
         layer,
@@ -243,6 +288,7 @@ def ablate_at(
         k=spec.k,
         clean_top_tokens=clean_top_tokens,
         skip_clean_top=spec.skip_clean_top,
+        cache=cache,
     )
     ablated = project_out(hidden, directions)
     residual = (
@@ -266,17 +312,20 @@ def ablate_window(
     spec: AblationSpec,
     clean_top_tokens_by_position: Dict[int, Sequence[int]],
 ) -> Tuple[Dict[Tuple[int, int], np.ndarray], List[AblationReceipt]]:
-    """Apply the ablation across the active layers x window-W positions (§5)."""
+    """Synthetic window fixture with one prepared direction cache per active layer."""
     out: Dict[Tuple[int, int], np.ndarray] = {}
     receipts: List[AblationReceipt] = []
     active = set(spec.active_layers)
+    caches = {}
     for (layer, position), hidden in sorted(hidden_by_layer_position.items()):
         if layer not in active:
-            out[(layer, position)] = np.asarray(hidden, dtype=np.float64).copy()
+            out[(layer, position)] = floating_vector(hidden).copy()
             continue
         top_tokens = clean_top_tokens_by_position.get(position, ())
+        if spec.k and layer not in caches:
+            caches[layer] = SyntheticDirectionCache.prepare(bundle, layer, unembed)
         ablated, receipt = ablate_at(
-            bundle, layer, position, hidden, unembed, spec, top_tokens
+            bundle, layer, position, hidden, unembed, spec, top_tokens, cache=caches.get(layer)
         )
         out[(layer, position)] = ablated
         receipts.append(receipt)
@@ -289,10 +338,12 @@ __all__ = [
     "AblationViolation",
     "SKIP_CLEAN_TOP",
     "Strength",
+    "SyntheticDirectionCache",
     "ablate_at",
     "ablate_window",
     "direction_readout_tokens",
     "project_out",
     "removed_norm",
+    "require_scientific_interventions",
     "select_ablation_directions",
 ]

@@ -1,0 +1,247 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "purpose": "One four-A100 CE3 host; preparing this template does not deploy resources or authorize scientific execution.",
+    "subscriptionId": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
+    "network": "Outbound internet via a dedicated public IP; all inbound traffic denied. Use Azure VM Run Command for administration.",
+    "shutdown": "A daily Azure shutdown schedule is included, but is NOT a cumulative GPU-hour limit. Runtime and actual deallocation require verification.",
+    "validation": "Live SKU availability, API versions, image, quota, EA price and policy must be checked before deployment."
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "chinaeast3",
+      "allowedValues": ["chinaeast3"]
+    },
+    "vmName": {
+      "type": "string",
+      "defaultValue": "wda-ce3-a100x4-0916",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_NC96ads_A100_v4",
+      "allowedValues": ["Standard_NC96ads_A100_v4"]
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "wdaadmin"
+    },
+    "sshPublicKey": {
+      "type": "string",
+      "minLength": 40,
+      "metadata": {
+        "description": "Operator-owned guest SSH PUBLIC key only. Never supply a portal password, private key, access token or placeholder."
+      }
+    },
+    "imageVersion": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "An explicitly verified Canonical Jammy 22_04-lts-gen2 version in CE3. No latest default."
+      }
+    },
+    "shutdownTimeUtc": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 4,
+      "metadata": {
+        "description": "Operator-approved next shutdown in HHmm UTC, configured before compute execution. Confirm the next occurrence is within the approved runtime."
+      }
+    },
+    "dataDiskSizeGB": {
+      "type": "int",
+      "defaultValue": 512,
+      "allowedValues": [512, 1024]
+    }
+  },
+  "variables": {
+    "vnetName": "[concat(parameters('vmName'), '-vnet')]",
+    "subnetName": "workload",
+    "nsgName": "[concat(parameters('vmName'), '-nsg')]",
+    "nicName": "[concat(parameters('vmName'), '-nic')]",
+    "ipName": "[concat(parameters('vmName'), '-outbound-ip')]",
+    "tags": {
+      "project": "J-space-study2",
+      "purpose": "instrument-qualification",
+      "operationRecord": "20260916-ce3-restart",
+      "scientificExecution": "requires-qualified-instrument-and-seal"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "DenyAllInbound",
+            "properties": {
+              "priority": 100,
+              "access": "Deny",
+              "direction": "Inbound",
+              "protocol": "*",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ],
+      "properties": {
+        "addressSpace": {"addressPrefixes": ["10.47.0.0/16"]},
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "10.47.0.0/24",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('ipName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {"name": "Standard"},
+      "properties": {"publicIPAllocationMethod": "Static"}
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nicName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "primary",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetName'))]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-09-01",
+      "name": "[parameters('vmName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+      ],
+      "properties": {
+        "hardwareProfile": {"vmSize": "[parameters('vmSize')]"},
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "provisionVMAgent": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+                  "keyData": "[parameters('sshPublicKey')]"
+                }
+              ]
+            }
+          }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "Canonical",
+            "offer": "0001-com-ubuntu-server-jammy",
+            "sku": "22_04-lts-gen2",
+            "version": "[parameters('imageVersion')]"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "deleteOption": "Delete",
+            "diskSizeGB": 128,
+            "managedDisk": {"storageAccountType": "StandardSSD_LRS"}
+          },
+          "dataDisks": [
+            {
+              "lun": 0,
+              "createOption": "Empty",
+              "deleteOption": "Detach",
+              "diskSizeGB": "[parameters('dataDiskSizeGB')]",
+              "managedDisk": {"storageAccountType": "Premium_LRS"}
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]",
+              "properties": {"primary": true, "deleteOption": "Delete"}
+            }
+          ]
+        },
+        "diagnosticsProfile": {"bootDiagnostics": {"enabled": true}}
+      }
+    },
+    {
+      "type": "Microsoft.DevTestLab/schedules",
+      "apiVersion": "2018-09-15",
+      "name": "[concat('shutdown-computevm-', parameters('vmName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      ],
+      "properties": {
+        "status": "Enabled",
+        "taskType": "ComputeVmShutdownTask",
+        "dailyRecurrence": {"time": "[parameters('shutdownTimeUtc')]"},
+        "timeZoneId": "UTC",
+        "targetResourceId": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]",
+        "notificationSettings": {"status": "Disabled"}
+      }
+    }
+  ],
+  "outputs": {
+    "vmResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+    },
+    "location": {"type": "string", "value": "[parameters('location')]"},
+    "vmSize": {"type": "string", "value": "[parameters('vmSize')]"},
+    "shutdownTimeUtc": {"type": "string", "value": "[parameters('shutdownTimeUtc')]"}
+  }
+}

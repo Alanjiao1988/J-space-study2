@@ -1,4 +1,7 @@
-"""J-lens fitting (§6.1).
+"""Synthetic NumPy JVP fitting utilities, not the pinned upstream fit adapter.
+
+These estimators support engineering tests only. The upstream implementation uses
+exact row-batched VJPs, not this stochastic helper; see :mod:`wda.lens.upstream`.
 
 Per subject the protocol requires **five** readouts:
 
@@ -283,10 +286,26 @@ def readout(
     return exp / exp.sum()
 
 
-def rms_norm(x: np.ndarray, eps: float = 1e-6) -> np.ndarray:
-    """The normalisation Qwen-family models apply before the unembedding."""
-    x = np.asarray(x, dtype=np.float64)
-    return x / np.sqrt(np.mean(x**2) + eps)
+def rms_norm(
+    x: np.ndarray, eps: float = 1e-6, *, weight: Optional[np.ndarray] = None
+) -> np.ndarray:
+    """Synthetic RMSNorm, optionally with learned gamma and an explicit epsilon.
+
+    Real-model readout must use the model's own final norm and lm_head. In
+    particular R1 and Qwen need not share epsilon (1e-5 versus 1e-6).
+    """
+    x = np.asarray(x)
+    if x.dtype not in (np.dtype("float32"), np.dtype("float64")):
+        raise ValueError("RMSNorm expects float32 or float64")
+    if not np.isfinite(x).all() or eps <= 0 or not np.isfinite(eps):
+        raise ValueError("RMSNorm requires finite input and positive finite epsilon")
+    normed = x / np.sqrt(np.mean(x**2, axis=-1, keepdims=True) + eps)
+    if weight is not None:
+        gamma = np.asarray(weight, dtype=x.dtype)
+        if gamma.shape != (x.shape[-1],) or not np.isfinite(gamma).all():
+            raise ValueError("RMSNorm weight must match the hidden dimension and be finite")
+        normed = normed * gamma
+    return normed
 
 
 def top_k_directions(
@@ -295,7 +314,7 @@ def top_k_directions(
     hidden: np.ndarray,
     k: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """The ``k`` J-lens directions with the strongest projection of ``hidden`` (§5).
+    """Synthetic SVD components; NOT qualified scientific token-J directions.
 
     Returns ``(directions, coefficients)`` where ``directions`` is ``k x d`` and
     orthonormal-by-construction (the right singular vectors of ``J_l``), and
@@ -305,7 +324,9 @@ def top_k_directions(
         raise ValueError("k must be non-negative")
     j = np.asarray(bundle.matrix(layer), dtype=np.float64)
     # Right singular vectors span the input directions J actually reads.
-    _, _, vt = np.linalg.svd(j, full_matrices=False)
+    from wda.intervene.subspace import canonical_svd
+
+    _, _, vt = canonical_svd(j)
     coeffs = vt @ np.asarray(hidden, dtype=np.float64)
     order = np.argsort(-np.abs(coeffs))[:k]
     return vt[order], coeffs[order]

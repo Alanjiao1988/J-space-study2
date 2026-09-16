@@ -1,4 +1,4 @@
-"""Phase-0 conformance fixtures (§10).
+"""Synthetic tests for Phase-0 fixture mechanics, not model-facing qualification.
 
 Five fixtures, all of which must pass before Phase A. Before the freeze a failure may be
 repaired and the fixtures re-run; after Freeze-2 any failure voids the assay (SC4).
@@ -164,9 +164,8 @@ class TestRandomControlNormMatched:
 class TestLensReadoutMatchesReference:
     """Local fit vs the public community lens: Jaccard over top-25 must clear the bar.
 
-    The model-facing form needs the calibration checkpoint and the HF reference lens; it is
-    marked ``needs_model``. What runs before Freeze-1 is the *metric* and its threshold, so
-    that the comparison itself cannot be silently mis-specified.
+    The real model-facing comparison remains unqualified. These tests cover the
+    metric and the explicit refusal of unsupported execution, not a passed Phase 0.
     """
 
     @staticmethod
@@ -185,15 +184,17 @@ class TestLensReadoutMatchesReference:
         assert 0.0 < spec["threshold"] < 1.0
         assert spec["reference_lens"]
 
-    def test_unrelated_readouts_fail_the_bar(self, synthetic_bundle, unembed, hidden, fixture_config):
+    def test_disjoint_readouts_fail_the_bar(self, fixture_config):
         threshold = fixture_config["lens_readout_matches_reference"]["threshold"]
-        probs = readout(synthetic_bundle, 4, hidden, unembed, norm=rms_norm)
-        shuffled = np.random.default_rng(0).permutation(probs)
-        assert self.jaccard_topk(probs, shuffled, 25) < 1.0 or threshold < 1.0
+        probs = np.arange(100, dtype=float)
+        reversed_probs = probs[::-1]
+        assert self.jaccard_topk(probs, reversed_probs, 25) == 0.0
+        assert self.jaccard_topk(probs, reversed_probs, 25) < threshold
 
-    @pytest.mark.needs_model
-    def test_against_community_lens(self):  # pragma: no cover - Phase 0 with a checkpoint
-        pytest.skip("requires the calibration checkpoint and the HF reference lens (Phase 0)")
+    def test_missing_reference_interface_is_explicit(self):
+        from wda.lens.upstream import QualificationPending, reference_readout_fixture
+        with pytest.raises(QualificationPending, match="not_qualified"):
+            reference_readout_fixture()
 
 
 # ======================================================================== fixture 5 ===
@@ -207,7 +208,7 @@ class TestKnownIntermediatePositive:
     weak about the method. This fixture is the guard against repeating that.
     """
 
-    def test_swap_moves_the_target_and_the_null_does_not(
+    def test_synthetic_donor_has_larger_effect_than_synthetic_null(
         self, synthetic_bundle, unembed, rng, d_model
     ):
         basis = LensBasis.from_bundle(synthetic_bundle, 4)
@@ -244,7 +245,12 @@ class TestKnownIntermediatePositive:
         )
         assert delta_swap > 0.0
         assert delta_swap > float(np.quantile(null_deltas, 0.95))
-        assert outcome.positive_control_holds() is (outcome.matched_norm_random_delta <= 0.0)
+        assert outcome.to_dict()["target_logit_delta"] == delta_swap
+
+    def test_positive_predicate_requires_nonpositive_random_delta(self):
+        assert SwapOutcome(1.0, 0.0).positive_control_holds()
+        assert not SwapOutcome(1.0, 0.01).positive_control_holds()
+        assert not SwapOutcome(0.0, -1.0).positive_control_holds()
 
     def test_swap_leaves_the_complement_untouched(self, synthetic_bundle, rng, d_model):
         basis = LensBasis.from_bundle(synthetic_bundle, 5)
@@ -263,9 +269,10 @@ class TestKnownIntermediatePositive:
         assert spec["min_items"] >= 20
         assert "probe-swap.json" in spec["source"]
 
-    @pytest.mark.needs_model
-    def test_on_calibration_model(self):  # pragma: no cover - Phase 0 with a checkpoint
-        pytest.skip("requires the calibration checkpoint and upstream probe-swap.json (Phase 0)")
+    def test_missing_positive_control_interface_is_explicit(self):
+        from wda.lens.upstream import QualificationPending, known_intermediate_fixture
+        with pytest.raises(QualificationPending, match="not_qualified"):
+            known_intermediate_fixture()
 
 
 # ===================================================================== exit criteria ===

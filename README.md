@@ -11,10 +11,16 @@
 > ### ⛔ Execution state: nothing has been run
 >
 > **0 model calls · 0 checkpoints downloaded · 0 lenses fitted · 0 GPU-hours · 0 cloud resources.**
-> This repository currently contains design, implementation and tests only. See
-> [`STATUS.json`](STATUS.json) for the machine-readable state and the outstanding Freeze-1
-> gates. `src/` contains no `from_pretrained`, no network client and no cloud SDK; nothing
-> here can start a run on import.
+> Resource creation is authorized in subscription
+> `d124de35-7837-4ffe-ba2b-2ec1d31477d0`, China East 3. **Azure CLI remains blocked by
+> the local sandbox; no deployment has been submitted.** Portal Owner access was
+> verified, but it does not repair the CLI's filesystem restriction.
+> See [`STATUS.json`](STATUS.json) and the
+> [restart operations report](reports/ce3_restart_20260916.md).
+>
+> The September 2 seal is preserved as a historical candidate and is **not valid
+> for the repaired implementation**. No replacement scientific seal has been issued.
+> Synthetic tests and the toy identity-hook canary are not Phase-0 qualification.
 
 ---
 
@@ -107,13 +113,20 @@ failure codes may re-run a `run_id`.
 
 ```bash
 python -m pip install -e ".[dev]"        # numpy / scipy / pytest; torch is optional at test time
-python -m pytest tests -q                # Phase-0 fixtures + governance + stats tests
-python -m wda.governance.seal write  --stage freeze1     # regenerate FREEZE-1.json
-python -m wda.governance.seal verify --stage freeze1     # must pass before every run
-python -m wda.items.generator --split explore --n 40 --out runs/phase0/items_explore.jsonl
+python -m pytest tests -q                # local engineering tests, not model qualification
+python tools/ce3_preflight.py            # prints the CLI plan; makes no Azure calls
 ```
 
-Every run entry point verifies the seal first and refuses to start on mismatch (§16).
+After the operator allows the Azure CLI configuration directory through the
+sandbox, `python tools/ce3_preflight.py --inspect-azure` performs **read-only**
+checks using the existing identity. It neither logs in nor deploys, switches
+cloud/subscription, extracts credentials, changes log paths, or retries a failure.
+
+Scientific runs require the schema-2 seal and measured prerequisite receipts.
+`seal verify --stage freeze1` currently refuses the old candidate **by design**.
+Do not delete/recreate it just to make verification pass. The required artifacts
+and remaining instrument limitations are documented in
+[`governance/CONTRACTS.md`](src/wda/governance/CONTRACTS.md).
 
 ## 8. Before anything is run
 
@@ -129,7 +142,24 @@ model call, and they are listed in [`STATUS.json`](STATUS.json):
    `registry.resolve` raises `UnlockedRevisionError` and no checkpoint can be loaded.
 4. Upstream pinned commit vendored — `python tools/vendor_upstream.py` (read-only, untracked).
 5. `L_p` re-verified against each subject's real tokenizer by `assert_cue_length` (fact F3).
-6. Phase-0 fixtures 4 and 5 run in their model-facing form — currently `needs_model` and skipped.
+6. Implement and qualify the actual reference readout and intermediate-swap
+   interfaces. Their entry points currently raise `QualificationPending`;
+   synthetic fixture tests cannot grant a PASS.
+
+Additional engineering boundaries now enforced:
+
+- Integer scoring is anchored and preserves signs; unparseable attempts remain
+  in the ITT denominator.
+- Primary bootstrap draws fits within each model and shares each item draw
+  across models; missing paired cells and nonfinite replicates are errors.
+- Native-template offsets and actual processed generation positions are
+  recorded separately from nominal token caps. Equal caps do not prove equal
+  exposure under early EOS.
+- NumPy SVD utilities are labelled synthetic/engineering-only. They do not
+  establish the scientific token-J intervention definition.
+- A model adapter uses the real final norm/lm_head and identity hooks, but a
+  deployable, timed calibration runner and the real causal positive control
+  are still outstanding.
 
 ## 9. Inherited constraints that shape the code
 
@@ -140,7 +170,7 @@ model call, and they are listed in [`STATUS.json`](STATUS.json):
 | F7 | Ablation runs are fp32-enforced; a bit-exact no-op check is logged on every trial. |
 | F6′, F8 | Instrument qualification and a causal positive control precede any scientific inference. |
 | F6′ | The band rule carries an **absolute floor and a minimum length** — the predecessor rule had neither and fired on a negative control. |
-| F13 | Seal precedes the first model call; scientific re-runs are refused by `rerun_policy`. |
+| F13 | Seal precedes the first model call; retries require a recorded infrastructure incident and immutable config/seal identity. |
 
 See [`references/predecessor_facts.md`](references/predecessor_facts.md) for the verbatim sources and
 [`references/predecessor_index.md`](references/predecessor_index.md) for the path index.

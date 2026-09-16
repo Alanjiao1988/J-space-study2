@@ -1,0 +1,34 @@
+{
+  "schema": "wda/operations_authorization/1",
+  "record_id": "20260916-ce3-restart",
+  "authorized_at": "2026-09-16T09:28:46.650+08:00",
+  "source": "operator conversation",
+  "baseline_commit": "63e9f34",
+  "scope": {
+    "cloud": "AzureChinaCloud",
+    "region": "chinaeast3",
+    "vm_count": 1,
+    "gpus_per_vm": 4,
+    "gpu_family": "NVIDIA A100",
+    "experiment": "staged restart of the Fixed-Checkpoint Workspace-Dependence Audit",
+    "record_operations_and_experiment_in_repository": true
+  },
+  "constraints": {
+    "no_scientific_execution_before_instrument_readiness": true,
+    "no_phase_c_before_both_subjects_qualify_and_freeze2": true,
+    "no_phase_d_before_material_phase_c_result": true,
+    "no_sandbox_bypass": true,
+    "no_credentials_tokens_cookies_or_oauth_parameters_in_repository": true
+  },
+  "provisioning_decisions": {
+    "subscription_id": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
+    "resource_group": null,
+    "verified_vm_sku": null,
+    "verified_quota": null,
+    "verified_hourly_price": null,
+    "approved_runtime_limit": null,
+    "shutdown_configuration": null
+  },
+  "preferred_control_plane": "Azure CLI, per the operator's subsequent direction",
+  "note": "The operator subsequently selected this subscription explicitly. This records authorization, not a deployment, formal protocol sign-off or passed instrument qualification. The earlier suggested 16 GPU-hour window is not represented as a newly confirmed budget here."
+}

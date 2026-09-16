@@ -35,6 +35,8 @@ from typing import Dict, Iterator, List, Optional
 from wda.errors import BlindingViolation
 from wda.phases import SUBJECT_ROLES, Phase, Role
 
+WITHHELD_ROLES = frozenset({*SUBJECT_ROLES, Role.PARENT_ANCHOR})
+
 _LOCK = threading.RLock()
 
 #: Environment variable that re-establishes blinding in a freshly spawned worker process.
@@ -83,7 +85,7 @@ def withheld_roles() -> frozenset:
     with _LOCK:
         if _STATE.active:
             return _STATE.withheld_roles
-    return frozenset(SUBJECT_ROLES) if _env_blinded() else frozenset()
+    return WITHHELD_ROLES if _env_blinded() else frozenset()
 
 
 def violations() -> List[Dict[str, str]]:
@@ -111,6 +113,15 @@ def guard_decision(caller: str) -> None:
         raise BlindingViolation(
             f"{caller} was called while Phase-A blinding is active. Phase A has zero "
             "evidential weight and may not compute or inspect D or G (§10, §16)."
+        )
+
+
+def guard_model(role: Role, key: str) -> None:
+    """Refuse and record non-calibration access BEFORE trusting a phase argument."""
+    if is_active() and role is not Role.CALIBRATION:
+        _record("model_while_blind", key)
+        raise BlindingViolation(
+            f"blinding is active: role {role.value!r} is withheld; cannot resolve {key!r}"
         )
 
 
@@ -144,7 +155,7 @@ def phase_a_blinding(*, propagate_to_subprocesses: bool = True) -> Iterator[_Bli
             raise BlindingViolation("blinding is already active; nested activation is refused")
         _STATE.active = True
         _STATE.phase = Phase.PHASE_A
-        _STATE.withheld_roles = frozenset(SUBJECT_ROLES)
+        _STATE.withheld_roles = WITHHELD_ROLES
     previous_env = os.environ.get(BLIND_ENV_VAR)
     if propagate_to_subprocesses:
         os.environ[BLIND_ENV_VAR] = "1"

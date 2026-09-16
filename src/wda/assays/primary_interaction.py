@@ -12,11 +12,12 @@ Design cells per model::
     G_primary = (acc_dc - acc_da) - (acc_fc - acc_fa)
     D         = G_primary(treatment) - G_primary(comparator)
 
-Every accuracy is the ITT composite (§9.4). Confidence intervals come from the
-hierarchical bootstrap at levels ``lens fit -> item -> template`` (§9.5).
+Every accuracy is the equal-fit ITT composite (§9.4). The bootstrap draws two
+fits independently within each model, then one shared item sample across all
+models/fits. Only one template ID per item is currently supported (§9.5).
 
-Nothing in this module may be called during Phase A: :func:`analyze` goes through
-:mod:`wda.stats.decision`, which is blinding-guarded (§16).
+During Phase A, :func:`analyze` is guarded before any statistics are computed,
+not merely when the final decision is made (§16).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from typing import Dict, List, Mapping, Optional, Sequence
 from wda.assays.registry import require_tier
 from wda.conditions.envelopes import C_DIRECT, C_FROZEN
 from wda.errors import ProtocolViolation
+from wda.governance import blind
 from wda.intervene.controls import assert_controls_complete
 from wda.phases import AssayTier
 from wda.scoring.parse import TripleEndpoint
@@ -89,28 +91,11 @@ class PrimaryResult:
 def assert_design_complete(
     frame: bs.TrialFrame, *, treatment: str = "treatment", comparator: str = "comparator"
 ) -> None:
-    """Every one of the eight cells (2 models x 2 conditions x 2 states) must be populated."""
-    missing = []
-    for role in (treatment, comparator):
-        for condition in (C_DIRECT, C_FROZEN):
-            for state in (bs.CLEAN, bs.ABLATED):
-                mask = (
-                    (frame.model_role == role)
-                    & (frame.condition == condition)
-                    & (frame.ablation_state == state)
-                )
-                if not mask.any():
-                    missing.append(f"{role}/{condition}/{state}")
-    if missing:
-        raise PrimaryAssayError(
-            f"the primary design is incomplete; empty cells: {missing}. A missing cell may "
-            "not be imputed or dropped (§9.4)."
-        )
-    if len(set(frame.lens_id.tolist())) < 2:
-        raise PrimaryAssayError(
-            "fewer than two lens fits are present. §6.2 requires both real-corpus lenses to "
-            "be run, and §9.5 makes the lens fit the outermost bootstrap level."
-        )
+    """Require every item in all four cells of each of the two real fits per model."""
+    try:
+        bs.validate_primary_design(frame, treatment=treatment, comparator=comparator)
+    except (bs.BootstrapViolation, ValueError) as exc:
+        raise PrimaryAssayError(str(exc)) from exc
 
 
 def analyze(
@@ -126,6 +111,7 @@ def analyze(
     cells: Sequence[CellSummary] = (),
 ) -> PrimaryResult:
     """Run the primary analysis and adjudicate ``D`` under §9.2."""
+    blind.guard_decision("wda.assays.primary_interaction.analyze")
     require_tier(ASSAY_NAME, AssayTier.PRIMARY)
     assert_design_complete(frame, treatment=treatment, comparator=comparator)
     assert_controls_complete(controls_reported)

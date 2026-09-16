@@ -35,6 +35,7 @@ import numpy as np
 
 from wda.errors import ProtocolViolation
 from wda.intervene.ablate import project_out, removed_norm
+from wda.intervene.subspace import SubspaceProjector, floating_vector
 
 
 class ControlViolation(ProtocolViolation):
@@ -115,15 +116,12 @@ def clamp_complement(
     If an effect survives this clamp, it is not mediated by the complementary component;
     if it disappears, the residual effect was not J-mediated.
     """
-    clean = np.asarray(hidden_clean, dtype=np.float64)
-    ablated = np.asarray(hidden_ablated, dtype=np.float64)
-    dirs = np.atleast_2d(np.asarray(directions, dtype=np.float64))
-    if dirs.size == 0:
-        return clean.copy()
-    q, _ = np.linalg.qr(dirs.T)
-    inside = q @ (q.T @ ablated)
-    outside_clean = clean - q @ (q.T @ clean)
-    return inside + outside_clean
+    clean = floating_vector(hidden_clean)
+    ablated = floating_vector(hidden_ablated)
+    if clean.shape != ablated.shape or clean.dtype != ablated.dtype:
+        raise ControlViolation("clamp inputs must share shape and dtype")
+    projector = SubspaceProjector.prepare(directions, clean.size, dtype=clean.dtype)
+    return (ablated - projector.remove(ablated)) + projector.remove(clean)
 
 
 # --------------------------------------------------------------------------------------

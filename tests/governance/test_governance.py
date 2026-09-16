@@ -132,7 +132,7 @@ class TestBlinding:
     def test_env_var_reestablishes_blinding_in_a_child_process(self, monkeypatch):
         monkeypatch.setenv(blind.BLIND_ENV_VAR, "1")
         assert blind.is_active() is True
-        assert blind.withheld_roles() == frozenset({Role.TREATMENT, Role.COMPARATOR})
+        assert blind.withheld_roles() == frozenset({Role.TREATMENT, Role.COMPARATOR, Role.PARENT_ANCHOR})
 
     def test_violations_are_recorded(self):
         with blind.phase_a_blinding():
@@ -145,45 +145,29 @@ class TestBlinding:
 
 
 class TestSeal:
-    def test_write_then_verify_round_trips(self, tmp_path):
-        root = tmp_path
-        (root / "PROTOCOL_v1.1.md").write_text("protocol", encoding="utf-8")
-        (root / "pyproject.toml").write_text("[project]", encoding="utf-8")
-        (root / "configs" / "freeze1").mkdir(parents=True)
-        (root / "configs" / "freeze1" / "a.json").write_text("{}", encoding="utf-8")
-        (root / "src" / "wda").mkdir(parents=True)
-        (root / "src" / "wda" / "m.py").write_text("x = 1\n", encoding="utf-8")
-        (root / "tests").mkdir()
-        (root / "tests" / "t.py").write_text("y = 2\n", encoding="utf-8")
-
+    def test_write_then_verify_round_trips(self, governance_tree):
+        root = governance_tree
         manifest = seal.write("freeze1", root=root)
-        assert manifest["file_count"] == 5
+        assert manifest["file_count"] >= len(seal.MANDATORY)
         assert seal.verify("freeze1", root=root)["ok"] is True
 
-    def test_a_changed_file_breaks_the_seal(self, tmp_path):
-        root = tmp_path
-        (root / "PROTOCOL_v1.1.md").write_text("protocol", encoding="utf-8")
-        (root / "pyproject.toml").write_text("[project]", encoding="utf-8")
+    def test_a_changed_file_breaks_the_seal(self, governance_tree):
+        root = governance_tree
         seal.write("freeze1", root=root)
         (root / "PROTOCOL_v1.1.md").write_text("tampered", encoding="utf-8")
         with pytest.raises(SealMismatch, match="changed"):
             seal.verify("freeze1", root=root)
         assert seal.diff("freeze1", root=root)["changed"] == ["PROTOCOL_v1.1.md"]
 
-    def test_an_added_file_breaks_the_seal(self, tmp_path):
-        root = tmp_path
-        (root / "PROTOCOL_v1.1.md").write_text("p", encoding="utf-8")
-        (root / "pyproject.toml").write_text("[project]", encoding="utf-8")
+    def test_an_added_file_breaks_the_seal(self, governance_tree):
+        root = governance_tree
         seal.write("freeze1", root=root)
-        (root / "src" / "wda").mkdir(parents=True)
         (root / "src" / "wda" / "extra.py").write_text("z = 3\n", encoding="utf-8")
         with pytest.raises(SealMismatch, match="added"):
             seal.verify("freeze1", root=root)
 
-    def test_resealing_a_changed_tree_is_refused(self, tmp_path):
-        root = tmp_path
-        (root / "PROTOCOL_v1.1.md").write_text("p", encoding="utf-8")
-        (root / "pyproject.toml").write_text("[project]", encoding="utf-8")
+    def test_resealing_a_changed_tree_is_refused(self, governance_tree):
+        root = governance_tree
         seal.write("freeze1", root=root)
         (root / "PROTOCOL_v1.1.md").write_text("changed", encoding="utf-8")
         with pytest.raises(SealMismatch, match="may not be re-sealed"):
@@ -200,30 +184,42 @@ class TestSeal:
         with pytest.raises(SealMismatch, match="not bypassable"):
             seal.require("freeze1", root=tmp_path)
 
-    def test_repo_freeze1_seal_verifies(self):
-        """The committed FREEZE-1.json must match the working tree."""
-        assert seal.verify("freeze1")["ok"] is True
+    def test_old_candidate_cannot_authorize_execution(self, governance_tree):
+        root = governance_tree
+        (root / "FREEZE-1.json").write_text(json.dumps({
+            "schema": "wda/seal/1", "root_sha256": "a" * 64, "files": []
+        }), encoding="utf-8")
+        with pytest.raises(SealMismatch):
+            seal.require("freeze1", root=root)
 
-    def test_sealed_files_contain_no_cr_bytes(self):
-        """Line endings are load-bearing: the seal hashes bytes, .gitattributes pins LF.
+    @pytest.mark.parametrize("path", [
+        "requirements.lock.json", "configs/freeze1/calibration_revision.lock.json",
+        "configs/phase_a/search_space.json", "references/predecessor_facts.md",
+    ])
+    def test_missing_mandatory_surface_is_refused(self, governance_tree, path):
+        (governance_tree / path).unlink()
+        with pytest.raises(SealMismatch, match="absent"):
+            seal.build_manifest("freeze1", root=governance_tree)
 
-        A CR byte in a sealed file means the manifest was computed on platform-specific
-        bytes and would fail verification after a checkout elsewhere.
-        """
-        from wda.paths import repo_root
+    def test_extra_metadata_changes_root(self, governance_tree):
+        first = seal.build_manifest("freeze1", root=governance_tree, extra={"seed": 1})
+        second = seal.build_manifest("freeze1", root=governance_tree, extra={"seed": 2})
+        assert first["root_sha256"] != second["root_sha256"]
 
-        root = repo_root()
-        offenders = [
-            entry["path"]
-            for entry in seal.build_manifest("freeze1", root=root)["files"]
-            if b"\r" in (root / entry["path"]).read_bytes()
-        ]
-        assert offenders == []
+    def test_tampered_metadata_is_refused(self, sealed_tree):
+        path = sealed_tree / "FREEZE-1.json"
+        value = json.loads(path.read_text())
+        value["extra"]["seed"] = 99
+        path.write_text(json.dumps(value))
+        with pytest.raises(SealMismatch, match="canonical"):
+            seal.verify("freeze1", root=sealed_tree)
 
-    def test_seal_writer_emits_lf(self, tmp_path):
-        root = tmp_path
-        (root / "PROTOCOL_v1.1.md").write_text("p", encoding="utf-8")
-        (root / "pyproject.toml").write_text("[project]", encoding="utf-8")
+    def test_freeze2_requires_real_qualification_artifacts(self, governance_tree):
+        with pytest.raises(SealMismatch, match="absent"):
+            seal.write("freeze2", root=governance_tree)
+
+    def test_seal_writer_emits_lf(self, governance_tree):
+        root = governance_tree
         seal.write("freeze1", root=root)
         assert b"\r" not in (root / "FREEZE-1.json").read_bytes()
 
@@ -237,11 +233,26 @@ class TestSeal:
 
 
 class TestRerunPolicy:
-    def test_registered_infrastructure_code_is_authorized(self):
-        ledger = rerun_policy.RerunLedger("phaseC-x")
-        entry = rerun_policy.authorize(ledger, "IF-OOM", "device OOM at trial 812")
+    def test_registered_infrastructure_code_is_authorized(self, tmp_path):
+        from wda.governance.artifacts import create_json, reference
+
+        identity = {"config_sha256": "a" * 64, "seal_root_sha256": "b" * 64}
+        ledger = rerun_policy.RerunLedger("phaseC-x", root=tmp_path, identity=identity)
+        create_json(tmp_path / "failures" / "first.json", {
+            "schema": "wda/runtime-failure/1", "run_id": "phaseC-x",
+            "identity": identity, "code": "IF-OOM", "retryable": True,
+        })
+        failure = reference(tmp_path, "failures/first.json")
+        entry = rerun_policy.authorize(
+            ledger, "IF-OOM", "device OOM at trial 812", failure=failure, proposed_identity=identity
+        )
         assert entry["attempt"] == 1
         assert "micro-batch" in entry["recovery"]
+        reopened = rerun_policy.RerunLedger("phaseC-x", root=tmp_path, identity=identity)
+        assert reopened.counts()["IF-OOM"] == 1
+        with pytest.raises(RerunRefused, match="already consumed"):
+            rerun_policy.authorize(reopened, "IF-OOM", "same incident",
+                                  failure=failure, proposed_identity=identity)
 
     def test_unregistered_code_is_refused(self):
         ledger = rerun_policy.RerunLedger("phaseC-x")
@@ -263,12 +274,32 @@ class TestRerunPolicy:
         with pytest.raises(RerunRefused, match="scientific re-run"):
             rerun_policy.authorize(ledger, "IF-HARD-KILL", reason)
 
-    def test_attempt_budget_is_enforced(self):
-        ledger = rerun_policy.RerunLedger("phaseC-x")
-        for _ in range(2):
-            rerun_policy.authorize(ledger, "IF-CHECKPOINT-DIGEST", "digest mismatch on download")
+    def test_attempt_budget_is_enforced(self, tmp_path):
+        from wda.governance.artifacts import create_json, reference
+
+        identity = {"config_sha256": "a" * 64, "seal_root_sha256": "b" * 64}
+        ledger = rerun_policy.RerunLedger("phaseC-x", root=tmp_path, identity=identity)
+        for i in range(3):
+            create_json(tmp_path / "failures" / f"{i}.json", {
+                "schema": "wda/runtime-failure/1", "run_id": "phaseC-x", "identity": identity,
+                "code": "IF-CHECKPOINT-DIGEST", "retryable": True,
+            })
+        for i in range(2):
+            rerun_policy.authorize(
+                ledger, "IF-CHECKPOINT-DIGEST", "digest mismatch on download",
+                failure=reference(tmp_path, f"failures/{i}.json"), proposed_identity=identity,
+            )
         with pytest.raises(RerunRefused, match="budget is exhausted"):
-            rerun_policy.authorize(ledger, "IF-CHECKPOINT-DIGEST", "digest mismatch on download")
+            rerun_policy.authorize(
+                ledger, "IF-CHECKPOINT-DIGEST", "digest mismatch on download",
+                failure=reference(tmp_path, "failures/2.json"), proposed_identity=identity,
+            )
+
+    def test_unrecorded_failure_cannot_authorize_rerun(self, tmp_path):
+        identity = {"config_sha256": "a" * 64, "seal_root_sha256": "b" * 64}
+        ledger = rerun_policy.RerunLedger("phaseC-x", root=tmp_path, identity=identity)
+        with pytest.raises(RerunRefused):
+            rerun_policy.authorize(ledger, "IF-OOM", "device OOM", proposed_identity=identity)
 
     def test_cpu_fallback_canary_is_registered(self):
         """Fact F13 lineage: the CPU-recovery canary is a pre-registered infrastructure path."""

@@ -13,12 +13,13 @@ Four envelopes; all use the model's **native chat template**.
                        prefill, to probe the fact-F4 compliance failure
 =====================  ===========================================================
 
-**Window W (frozen).** The last ``L_p`` prompt positions (the answer-cue suffix) plus every
-generated answer position. Because ``L_p`` and ``max_new_tokens`` are identical for
-``C_direct`` and ``C_frozen``, the two conditions receive **exactly the same number of
-ablation exposures**; the only difference between them is whether a correct rationale is
-present in the context. :func:`assert_window_parity` enforces this rather than assuming it,
-because the whole interpretation of ``G_primary`` rests on it.
+**Window W.** The primary budget is the last ``L_p`` prompt positions plus at most
+``max_new_tokens`` generated positions. Equal caps do NOT imply equal exposure: EOS
+may differ, and the last emitted token need not be fed through a decoder block.
+``C_gen`` covers generation only. Model-facing code must record actual hook positions
+and compare paired exposure; no padding or primary prefill is introduced here.
+The user-message cue is NOT assumed to be the native template's final token suffix.
+``wda.conditions.native`` measures that boundary and blocks scientific use on mismatch.
 
 **Compliance (fact F4).** The R1-Distill checkpoints may refuse to answer directly and open
 a ``<think>`` span. The primary conditions therefore use **no prefill**; parseability is
@@ -48,6 +49,7 @@ C_DIRECT_PREFILL = "C_direct_prefill"
 PRIMARY_CONDITIONS: Tuple[str, str] = (C_DIRECT, C_FROZEN)
 
 WINDOW_RULE = "last_L_p_prompt_plus_generated"
+GENERATION_ONLY = "generated_only"
 
 
 class EnvelopeViolation(ProtocolViolation):
@@ -71,6 +73,8 @@ class Envelope:
     exploratory: bool = False
 
     def __post_init__(self) -> None:
+        if self.condition not in (C_DIRECT, C_FROZEN, C_GEN, C_DIRECT_PREFILL):
+            raise EnvelopeViolation(f"unknown condition {self.condition!r}")
         if self.chat_template != "native":
             raise EnvelopeViolation("§5 requires the model's native chat template in all conditions")
         if self.ablation_window != WINDOW_RULE:
@@ -94,8 +98,8 @@ class Envelope:
 
     @property
     def window_size(self) -> int:
-        """``|W|`` in tokens: the ablation-exposure count."""
-        return self.L_p + self.max_new_tokens
+        """Nominal upper bound, NOT an observed ablation-exposure count."""
+        return (0 if self.condition == C_GEN else self.L_p) + self.max_new_tokens
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -107,7 +111,7 @@ class Envelope:
             "answer_cue": self.answer_cue,
             "L_p": self.L_p,
             "max_new_tokens": self.max_new_tokens,
-            "ablation_window": self.ablation_window,
+            "ablation_window": GENERATION_ONLY if self.condition == C_GEN else self.ablation_window,
             "exploratory": self.exploratory,
         }
 
@@ -241,6 +245,7 @@ class Window:
     prompt_positions: Tuple[int, ...]
     generated_positions: Tuple[int, ...]
     rule: str = WINDOW_RULE
+    observed: bool = False
 
     @property
     def positions(self) -> Tuple[int, ...]:
@@ -255,23 +260,39 @@ class Window:
             "prompt_positions": list(self.prompt_positions),
             "generated_positions": list(self.generated_positions),
             "size": len(self),
+            "measurement": "actual_forward_positions" if self.observed else "nominal_budget",
         }
 
 
-def window(envelope: Envelope, prompt_length: int) -> Window:
-    """Window W: the last ``L_p`` prompt positions plus every generated position."""
-    if prompt_length < envelope.L_p:
+def window(
+    envelope: Envelope, prompt_length: int, *, processed_generated_count: Optional[int] = None
+) -> Window:
+    """Plan W, or record actual forward positions when an observed count is supplied."""
+    if prompt_length < 1:
+        raise EnvelopeViolation("prompt_length must be positive")
+    if envelope.condition != C_GEN and prompt_length < envelope.L_p:
         raise EnvelopeViolation(
             f"prompt of {prompt_length} tokens is shorter than L_p={envelope.L_p}; "
             "the answer-cue suffix does not fit."
         )
-    prompt_positions = tuple(range(prompt_length - envelope.L_p, prompt_length))
-    generated = tuple(range(prompt_length, prompt_length + envelope.max_new_tokens))
-    return Window(prompt_positions=prompt_positions, generated_positions=generated)
+    observed = processed_generated_count is not None
+    count = envelope.max_new_tokens if not observed else processed_generated_count
+    if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= envelope.max_new_tokens:
+        raise EnvelopeViolation("processed generated count must be an integer within the token cap")
+    prompt_positions = (
+        () if envelope.condition == C_GEN
+        else tuple(range(prompt_length - envelope.L_p, prompt_length))
+    )
+    generated = tuple(range(prompt_length, prompt_length + count))
+    return Window(
+        prompt_positions=prompt_positions, generated_positions=generated,
+        rule=GENERATION_ONLY if envelope.condition == C_GEN else WINDOW_RULE,
+        observed=observed,
+    )
 
 
 def assert_window_parity(a: Envelope, b: Envelope) -> int:
-    """§5 — ``C_direct`` and ``C_frozen`` must present identical ablation exposure.
+    """Check equal primary budgets, not actual exposure under early EOS.
 
     Returns the shared window size. Raises if the two envelopes differ in ``L_p`` or
     ``max_new_tokens``, which would confound ``G_primary`` with exposure count.
@@ -288,7 +309,8 @@ def assert_window_parity(a: Envelope, b: Envelope) -> int:
         raise EnvelopeViolation(
             f"window mismatch: {a.condition} has (L_p={a.L_p}, max_new={a.max_new_tokens}) "
             f"but {b.condition} has (L_p={b.L_p}, max_new={b.max_new_tokens}). The two "
-            "primary conditions must receive the same number of ablation exposures (§5)."
+            "primary conditions' same number of ablation exposures cannot even be budgeted. "
+            "Equal budgets still require measured exposure comparison."
         )
     if a.ablation_window != b.ablation_window:
         raise EnvelopeViolation("the two primary conditions use different window rules")
@@ -322,6 +344,7 @@ def envelopes_snapshot(envelopes: Dict[str, Envelope]) -> Dict[str, object]:
         "primary_window_size": assert_window_parity(
             envelopes[C_DIRECT], envelopes[C_FROZEN]
         ),
+        "primary_window_size_is_upper_bound": True,
         "envelopes": {name: env.to_dict() for name, env in sorted(envelopes.items())},
         "digests": {name: env.digest() for name, env in sorted(envelopes.items())},
     }

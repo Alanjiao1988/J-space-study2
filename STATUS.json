@@ -2,8 +2,28 @@
   "schema": "wda/status/1",
   "project": "Fixed-Checkpoint Workspace-Dependence Audit",
   "protocol": "PROTOCOL_v1.1.md",
-  "state": "FREEZE_1_CANDIDATE_SCAFFOLD_COMPLETE_NO_EXECUTION",
-  "updated_at": "2026-09-02",
+  "state": "RESTART_AUTHORIZED_BLOCKED_CLI_SANDBOX_AND_QUALIFICATION",
+  "updated_at": "2026-09-16",
+
+  "restart_request": {
+    "authorized_at": "2026-09-16T09:28:46.650+08:00",
+    "cloud": "AzureChinaCloud",
+    "requested_region": "chinaeast3",
+    "requested_vm_count": 1,
+    "requested_gpus_per_vm": 4,
+    "requested_gpu_family": "NVIDIA A100",
+    "subscription_id": "d124de35-7837-4ffe-ba2b-2ec1d31477d0",
+    "resource_group": null,
+    "vm_resource_id": null,
+    "login_reported_by_operator": true,
+    "login_verified_by_agent": true,
+    "verified_portal_role": "Owner",
+    "preferred_control_plane": "Azure CLI",
+    "blocker": "Portal login and Owner access to the chosen enabled subscription were verified. Azure CLI still cannot write its normal .azure command-log directory under the active sandbox. Subsequent portal sessions timed out or returned to sign-in; browser authentication is not CLI authentication. Await sandbox-policy adjustment, then perform read-only CE3 preflight. No bypass or deployment attempted.",
+    "authorization_record": "runs/operations/20260916-ce3-restart/authorization.json",
+    "operations_log": "runs/operations/20260916-ce3-restart/log.jsonl",
+    "report": "reports/ce3_restart_20260916.md"
+  },
 
   "execution": {
     "subject_model_calls": 0,
@@ -13,11 +33,11 @@
     "gpu_hours": 0,
     "cloud_resources_created": 0,
     "cloud_provider": null,
-    "note": "Nothing has been executed. No model has been loaded, no checkpoint downloaded, no cloud resource created. The repository contains design, implementation and tests only."
+    "note": "Provisioning and staged experiment startup are authorized, but neither has begun. No resource deployment was submitted, model loaded, checkpoint downloaded, or scientific trial executed. Repository operation records must not be interpreted as experimental results."
   },
 
   "phases": {
-    "freeze1": "candidate - sealed as FREEZE-1.json; awaiting operator sign-off on delta and the F6-prime errata",
+    "freeze1": "Historical schema-1 candidate preserved, not valid for the repaired implementation. Schema-2 sealing awaits required dependencies, upstream/calibration provenance and operator-approved configuration.",
     "phase0": "not started",
     "phaseA": "not started",
     "phaseB": "not started",
@@ -32,12 +52,26 @@
     "Subject and calibration revisions resolved and locked via `python -m wda.models.registry lock` (section 8.1).",
     "Upstream pinned commit vendored via tools/vendor_upstream.py (read-only, untracked).",
     "L_p re-verified against each subject's real tokenizer by assert_cue_length before the first model call (fact F3).",
-    "Phase-0 fixtures 4 and 5 run in their model-facing form (currently skipped, marked needs_model)."
+    "Restore Azure CLI access through sandbox policy; verify exact CE3 SKU/family and regional quota in the selected subscription.",
+    "Validate the prepared ARM template, image version, actual EA price, guest public key and shutdown/runtime limits before deployment.",
+    "Complete and qualify actual reference readout and intermediate-swap interfaces; current entry points explicitly refuse unqualified execution.",
+    "Resolve scientific token-J directions, native-template cue boundary and measured exposure equality. Synthetic SVD and toy forward tests cannot qualify these.",
+    "Complete a deployable bounded model-facing calibration runner. No calibration or subject model was loaded during these repairs."
   ],
 
   "seal": {
-    "freeze1": "FREEZE-1.json present; verify with `python -m wda.governance.seal verify --stage freeze1`",
+    "freeze1": "Original FREEZE-1.json retained without changes; schema-2 verification intentionally rejects this stale candidate. Do not silently reseal.",
     "freeze2": "not written; produced after Phase B, before Phase C"
+  },
+
+  "engineering_validation": {
+    "scope": "offline synthetic tests and toy CPU model only",
+    "passed": 483,
+    "failed": 0,
+    "skipped": 0,
+    "receipt": "runs/operations/20260916-ce3-restart/engineering-verification.json",
+    "phase0_qualified": false,
+    "new_scientific_seal_issued": false
   },
 
   "stopping_conditions_triggered": [],

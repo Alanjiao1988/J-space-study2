@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass, field
+from collections.abc import Mapping as MappingABC
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional
 
 from wda.errors import (
@@ -29,6 +31,7 @@ from wda.errors import (
     UnlockedRevisionError,
     UnregisteredModelError,
 )
+from wda.governance.artifacts import EvidenceError, hex_digest, local_path, read_json
 from wda.paths import revision_lock_path, write_json_lf
 from wda.phases import Phase, Role, Stratum
 
@@ -63,6 +66,9 @@ class ModelEntry:
         )
 
     def to_dict(self) -> Dict[str, object]:
+        from wda.governance import blind
+
+        blind.guard_model(self.role, self.key)
         return {
             "key": self.key,
             "repo_id": self.repo_id,
@@ -96,7 +102,7 @@ def _entry(
 
 
 #: §8.1 subjects, §8.2 calibration model, §8.3 replication tiers.
-REGISTRY: Mapping[str, ModelEntry] = {
+_ENTRIES: Mapping[str, ModelEntry] = {
     # --- §8.2 calibration (Phase 0 / A only; disjoint from the subjects) --------------
     "calib_qwen25_7b_instruct": _entry(
         "calib_qwen25_7b_instruct",
@@ -181,7 +187,30 @@ DENYLIST: Mapping[str, str] = {
     ),
 }
 
-_REPO_ID_INDEX = {entry.repo_id: entry.key for entry in REGISTRY.values()}
+_REPO_ID_INDEX = {entry.repo_id: entry.key for entry in _ENTRIES.values()}
+
+
+class _GuardedRegistry(MappingABC):
+    """Guard direct indexing, iteration, values(), items() and role-map access."""
+
+    def __getitem__(self, key: str) -> ModelEntry:
+        from wda.governance import blind
+
+        entry = _ENTRIES[key]
+        blind.guard_model(entry.role, entry.key)
+        return entry
+
+    def __iter__(self):
+        from wda.governance import blind
+
+        blind.guard_surface("subject_registry")
+        return iter(_ENTRIES)
+
+    def __len__(self):
+        return len(_ENTRIES)
+
+
+REGISTRY: Mapping[str, ModelEntry] = _GuardedRegistry()
 
 
 # --------------------------------------------------------------------------------------
@@ -189,13 +218,60 @@ _REPO_ID_INDEX = {entry.repo_id: entry.key for entry in REGISTRY.values()}
 # --------------------------------------------------------------------------------------
 
 
-def load_revision_lock() -> Dict[str, Dict[str, str]]:
-    path = revision_lock_path()
-    if not path.exists():
-        return {}
-    with path.open("r", encoding="utf-8") as fh:
-        payload = json.load(fh)
-    return payload.get("revisions", {})
+def validate_revision_lock(payload: dict) -> Dict[str, Dict[str, str]]:
+    """Validate identifiers, exact repository bindings and full commit syntax.
+
+    A syntactically valid SHA is NOT evidence of a resolved or loaded checkpoint.
+    Model-facing execution receipts must separately identify the loaded files.
+    """
+    if payload.get("schema") != "wda/model_revisions.lock/1":
+        raise UnlockedRevisionError("unsupported model revision lock schema")
+    entries = payload.get("revisions")
+    if not isinstance(entries, dict):
+        raise UnlockedRevisionError("revision lock requires a revisions object")
+    for key, entry in entries.items():
+        if key not in _ENTRIES:
+            raise UnregisteredModelError(f"unknown registry key in revision lock: {key!r}")
+        if not isinstance(entry, dict) or set(entry) != {"repo_id", "revision", "locked_at"}:
+            raise UnlockedRevisionError(f"malformed revision lock entry: {key!r}")
+        if entry["repo_id"] != _ENTRIES[key].repo_id:
+            raise UnlockedRevisionError(f"wrong repo_id for {key!r}")
+        try:
+            hex_digest(entry["revision"], 40)
+        except EvidenceError as exc:
+            raise UnlockedRevisionError(str(exc)) from exc
+        if not isinstance(entry["locked_at"], str) or not entry["locked_at"]:
+            raise UnlockedRevisionError(f"missing locked_at for {key!r}")
+    return entries
+
+
+def load_revision_lock(*, root: Optional[Path] = None) -> Dict[str, Dict[str, str]]:
+    """Merge the immutable calibration lock and the later subject lock.
+
+    Freeze-1 hashes ``configs/freeze1/calibration_revision.lock.json`` only;
+    Freeze-2 also hashes ``configs/model_revisions.lock.json``. Adding subject
+    pins therefore does not mutate the already sealed calibration identity.
+    """
+    path = Path(root) / "configs" / "model_revisions.lock.json" if root else revision_lock_path()
+    calibration = path.parent / "freeze1" / "calibration_revision.lock.json"
+    merged: Dict[str, Dict[str, str]] = {}
+    for lock in (calibration, path):
+        if lock.is_symlink():
+            raise UnlockedRevisionError("symlink revision locks are refused")
+        if not lock.exists():
+            continue
+        try:
+            local_path(lock.parent, lock.name)
+            entries = validate_revision_lock(read_json(lock))
+        except EvidenceError as exc:
+            raise UnlockedRevisionError(str(exc)) from exc
+        if lock == calibration and set(entries) != {"calib_qwen25_7b_instruct"}:
+            raise UnlockedRevisionError("the Freeze-1 lock must contain calibration only")
+        for key, entry in entries.items():
+            if key in merged and entry != merged[key]:
+                raise UnlockedRevisionError(f"conflicting locks for {key!r}")
+            merged[key] = entry
+    return merged
 
 
 def write_revision_lock(revisions: Mapping[str, str], *, note: str = "") -> Dict[str, object]:
@@ -204,22 +280,35 @@ def write_revision_lock(revisions: Mapping[str, str], *, note: str = "") -> Dict
     Existing entries are never silently overwritten: re-locking a key to a different digest
     raises, because a subject's revision is part of the Freeze-2 seal.
     """
-    existing = load_revision_lock()
+    from wda.governance import blind
+
+    for key in revisions:
+        if key not in _ENTRIES:
+            raise UnregisteredModelError(f"cannot lock unknown registry key {key!r}")
+        blind.guard_model(_ENTRIES[key].role, key)
+    calibration_key = "calib_qwen25_7b_instruct"
+    if calibration_key in revisions and len(revisions) != 1:
+        raise UnlockedRevisionError("lock calibration and subjects separately")
+    path = revision_lock_path()
+    if calibration_key in revisions:
+        path = path.parent / "freeze1" / "calibration_revision.lock.json"
+    all_existing = load_revision_lock()
+    existing = validate_revision_lock(read_json(path)) if path.exists() else {}
     merged: Dict[str, Dict[str, str]] = dict(existing)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for key, revision in revisions.items():
-        if key not in REGISTRY:
-            raise UnregisteredModelError(f"cannot lock unknown registry key {key!r}")
-        if not isinstance(revision, str) or len(revision) < 7:
-            raise ValueError(f"revision for {key!r} must be a commit digest, got {revision!r}")
-        prior = existing.get(key)
+        try:
+            hex_digest(revision, 40)
+        except EvidenceError as exc:
+            raise UnlockedRevisionError(str(exc)) from exc
+        prior = all_existing.get(key)
         if prior is not None and prior["revision"] != revision:
             raise UnlockedRevisionError(
                 f"{key!r} is already locked to {prior['revision']!r}; re-locking to "
                 f"{revision!r} would invalidate the seal. Scientific re-runs are forbidden (§11)."
             )
         merged[key] = {
-            "repo_id": REGISTRY[key].repo_id,
+            "repo_id": _ENTRIES[key].repo_id,
             "revision": revision,
             "locked_at": prior["locked_at"] if prior else now,
         }
@@ -228,20 +317,15 @@ def write_revision_lock(revisions: Mapping[str, str], *, note: str = "") -> Dict
         "note": note or "§8.1 resolved-and-locked checkpoint revisions.",
         "revisions": merged,
     }
-    write_json_lf(revision_lock_path(), payload, sort_keys=True)
+    if merged != existing:
+        local_path(path.parent, path.name, file=False)
+        write_json_lf(path, payload, sort_keys=True)
     return payload
 
 
 # --------------------------------------------------------------------------------------
 # Resolution
 # --------------------------------------------------------------------------------------
-
-
-def _blinded_roles() -> frozenset:
-    # Imported lazily so that ``blind`` may import the registry's enums without a cycle.
-    from wda.governance import blind
-
-    return blind.withheld_roles()
 
 
 def resolve(
@@ -263,32 +347,31 @@ def resolve(
         When ``True`` (the default, and mandatory for any real model load) the checkpoint
         must already be locked in ``configs/model_revisions.lock.json``.
     """
+    from wda.governance import blind
+
+    lookup = key if key in _ENTRIES else _REPO_ID_INDEX.get(key, "")
+    if lookup:
+        blind.guard_model(_ENTRIES[lookup].role, lookup)
+    elif blind.is_active():
+        blind.guard_surface("unregistered_model_lookup")
     if key in DENYLIST:
         raise DeniedModelError(f"{key!r} is on the denylist — {DENYLIST[key]}")
-    lookup = key if key in REGISTRY else _REPO_ID_INDEX.get(key, "")
     if not lookup:
-        known = ", ".join(sorted(REGISTRY))
+        known = ", ".join(sorted(_ENTRIES))
         raise UnregisteredModelError(
             f"{key!r} is not registered in §8. Registered keys: {known}. "
             "Loading an unregistered checkpoint is a protocol violation."
         )
-    entry = REGISTRY[lookup]
+    entry = _ENTRIES[lookup]
+
+    if not isinstance(phase, Phase):
+        raise PhaseViolation("phase must be a Phase enum")
 
     if phase not in entry.allowed_phases:
         allowed = ", ".join(sorted(p.value for p in entry.allowed_phases))
         raise PhaseViolation(
             f"{entry.key!r} ({entry.role.value}) may only be loaded in [{allowed}], "
             f"not in {phase.value!r}."
-        )
-
-    withheld = _blinded_roles()
-    if entry.role in withheld:
-        # Deferred import keeps ``errors`` the single source of the exception type.
-        from wda.errors import BlindingViolation
-
-        raise BlindingViolation(
-            f"blinding is active: role {entry.role.value!r} is withheld, so {entry.key!r} "
-            "cannot be resolved. §10 Phase A must not touch a subject model."
         )
 
     revision = load_revision_lock().get(entry.key, {}).get("revision")
@@ -303,6 +386,9 @@ def resolve(
 
 def subjects(stratum: Stratum = Stratum.PRIMARY_14B) -> Dict[Role, ModelEntry]:
     """The treatment/comparator pair for a stratum (the anchor is excluded)."""
+    from wda.governance import blind
+
+    blind.guard_surface("subject_role_mapping")
     out: Dict[Role, ModelEntry] = {}
     for entry in REGISTRY.values():
         if entry.stratum is stratum and entry.role in (Role.TREATMENT, Role.COMPARATOR):
@@ -311,15 +397,22 @@ def subjects(stratum: Stratum = Stratum.PRIMARY_14B) -> Dict[Role, ModelEntry]:
 
 
 def registry_snapshot() -> Dict[str, object]:
-    """Serialisable registry state, embedded into every ``config.json``."""
+    """Serialisable state; a blinded snapshot exposes calibration entries only."""
+    from wda.governance import blind
+
     locked = load_revision_lock()
+    visible = {
+        key: entry for key, entry in _ENTRIES.items()
+        if not blind.is_active() or entry.role is Role.CALIBRATION
+    }
     return {
         "schema": "wda/registry_snapshot/1",
         "entries": [
-            REGISTRY[key].with_revision(locked.get(key, {}).get("revision")).to_dict()
-            for key in sorted(REGISTRY)
+            visible[key].with_revision(locked.get(key, {}).get("revision")).to_dict()
+            for key in sorted(visible)
         ],
-        "denylist": dict(sorted(DENYLIST.items())),
+        "denylist": {} if blind.is_active() else dict(sorted(DENYLIST.items())),
+        "redacted": blind.is_active(),
     }
 
 

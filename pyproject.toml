@@ -16,7 +16,8 @@ dependencies = [
 # Model-facing extras. Not required to run the stats / governance / item test suites.
 models = [
     "torch>=2.1",
-    "transformers>=4.44",
+    "transformers>=5.5",
+    "packaging>=23",
 ]
 dev = [
     "pytest>=7.4",
